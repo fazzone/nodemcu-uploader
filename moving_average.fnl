@@ -21,23 +21,6 @@
     (: display :setFontPosBottom)
     (: display :setFontDirection 0))
 
-;; sending to google
-
-(fn make-http-request
-    [method url headers body]
-    (var request (.. method " " url " HTTP/1.1\r\n"))
-    (each [hdr val (pairs headers)]
-	  (set request (.. request hdr ": " val "\r\n")))
-    (.. request "Content-Length: " (# body) "\r\n\r\n" body))
-
-(fn send-survey-datapoint-request
-  [survey-url entry-key data]
-  (make-http-request "POST"
-                     survey-url
-                     {"Host" "docs.google.com"
-                      "Content-Type" "application/x-www-form-urlencoded"}
-                     (.. entry-key "=" data)))
-
 (fn send-via-forwarder
   [datapoint]
   (http.post "http://54.245.181.150:4321"
@@ -46,22 +29,6 @@
                             :data {the-entry-key datapoint}})
              (fn [code data]
                (print "got response " code))))
-
-(fn send-to-survey
-  [data]
-  (print "sending " data)
-  (let [srv (tls.createConnection)]
-    (: srv :on "receive"
-       (fn [socket]
-         (print "received first data")
-         (: socket :close))
-       (: srv :on "connection"
-          (fn [socket c]
-            (print "connected")
-            (: socket :send (send-survey-datapoint-request the-survey-url the-entry-key data)))))
-    (print "connecting")
-    (: srv :connect 443 "docs.google.com")
-    (print "connected?")))
 
 
 
@@ -113,7 +80,6 @@
 (global pending-send nil)
 
 (node.egc.setmode node.egc.ON_MEM_LIMIT 16384)
-(print "free: " (node.heap))
 
 (let [t (tmr.create)
       sender-timer (tmr.create)
