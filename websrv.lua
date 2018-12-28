@@ -34,25 +34,31 @@ function receiver(client,request)
    encode[1] = encode[1] + 1
    encode[2] = encode[2] + 5
 
-   -- parse the response using lua patterns
+   -- parse the response using lua patterns. I didn't think of this I stole it...
    
    local _, _, method, path, vars = string.find(request, "([A-Z]+) (.+)?(.+) HTTP");
    print("method, path,vars:", method, path, vars)
 
-   if(method == nil)then
+   if not method then
       _, _, method, path = string.find(request, "([A-Z]+) (.+) HTTP");
       print("method nil: method, path:", method, path)
    end
 
-   local _GET = {}
+   local parsedvar = {}
 
    if (vars ~= nil)then
       for k, v in string.gmatch(vars, "(%w+)=(%w+)&*") do
-	 _GET[k] = v
+	 parsedvar[k] = v
 	 print("k, v:", k, v)
       end
    end
 
+   -- at this point you have the info from the input controls (e.g. buttons) in parsedvar[]
+   -- and can take whatever actions you wish based on them...
+
+   -- this is the function that calls itself back to make sure all the lines of html are
+   -- sent one at a time and in order
+   
    local function send(localSocket)
       ll = ff:readline()
       line = line + 1
