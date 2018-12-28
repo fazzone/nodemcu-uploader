@@ -14,3 +14,7 @@ env3/
 # editors
 .vscode/
 .tox
+
+.#*
+GT_*
+
