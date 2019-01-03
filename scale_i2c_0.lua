@@ -1,3 +1,27 @@
+local the_survey_url = "/forms/d/e/1FAIpQLSelOx6I1Mv7x6Xg7f7vti9Qx7y5hQHms9LdCpZhYFutPZfZOg/formResponse"
+local the_entry_key = "entry.1803841049"
+
+local threeQ =   "/forms/d/e/1FAIpQLSd_AveBb5zD6BFotkc5S84xY7JqU8HxN4hYAOoxB8HKLzEdHQ/formResponse"
+local Q1="entry.1967372928"
+local Q2="entry.1949919536"
+local Q3="entry.58067512"
+
+local function send_via_forwarder(datapoint)
+   local function _0_(code, data)
+      return print("got response ", code)
+   end
+   return http.post("http://54.245.181.150:4321", nil, sjson.encode({["survey-path"] = the_survey_url, data = {[the_entry_key] = datapoint}}), _0_)
+end
+
+local function send_mult_via_forwarder(data1, data2, data3)
+   local function _0_(code, data)
+      return print("got response ", code)
+   end
+   text= sjson.encode({["survey-path"] = threeQ, data = {[Q1] = data1, [Q2]=data2, [Q3]=data3}})
+   print("sj:", text)
+   return http.post("http://54.245.181.150:4321", nil, sjson.encode({["survey-path"] = threeQ, data = {[Q1] = data1, [Q2]=data2, [Q3]=data3}}), _0_)
+end
+
 function swiendsleep()
    --print("in swiendsleep")
    dispSleepTimer:start()   
@@ -19,6 +43,7 @@ function dispSleep()
    disp:sendBuffer()
    disp:setPowerSave(1)
    lock = false
+   sent_to_google=false
    lockwt = 0
    iwt = 1
    jwt = 1
@@ -47,8 +72,8 @@ function init_i2c_display()
     print("init .. after u8g2 call, disp:", disp)
 end
 
-calib = 11010.8
-zero = -17800
+calib = 10957.0
+zero = 0
 seq = {u8g2.DRAW_UPPER_RIGHT, u8g2.DRAW_LOWER_RIGHT, u8g2.DRAW_LOWER_LEFT,u8g2.DRAW_UPPER_LEFT}
 iseq = 1
 wtboxcar={}
@@ -56,6 +81,7 @@ iwt = 1
 jwt = 1
 wtboxlen=7
 lock = false
+sent_to_google=false
 lockwt = 0
 lastread = 0
 noreadings = true
@@ -63,7 +89,7 @@ tgtweight = 270
 
 function read()
    local wt = (hx711.read(0) - zero)/calib
-   tmr.delay(100)
+   --tmr.delay(100)
    --print("in read, wt:", wt)
 
 --   if wt < 10 then
@@ -72,13 +98,13 @@ function read()
 --      return
 --   end
 
-   if wt > 10 then
-      print("wt, lastread, iwt", wt, lastread,iwt)
-   end
+   --if wt > 10 then
+   --   print("wt, lastread, iwt", wt, lastread,iwt)
+   --end
 
    if math.abs(wt-lastread) > 1 then   
       lastread = wt
-      print("wt>lastread")
+      print("|wt-lastread| > 1")
       if not lock then
 	 dispSleepTimer:stop()
 	 disp:setPowerSave(0)
@@ -88,6 +114,7 @@ function read()
 	 local hh = 30
 	 ww = disp:getStrWidth('----')
 	 disp:drawStr(dw/2 - ww/2, 10+hh, '----')
+	 print("----")
 	 disp:sendBuffer()
       end
       swiendread()
@@ -174,14 +201,15 @@ function read()
       else
 	 text = string.format("(%.1f)", tgtweight)
       end
-      --print(text)
+      print(text)
       ww = disp:getStrWidth(text)
       disp:drawStr(dw/2 - ww/2, 30+hh, text)
       text = string.format("T: %.1f", tgtweight)
+      print(text)
       disp:sendBuffer()
       
       if lock then swiwt = lockwt else swiwt = avg end
-      local movdeg = 180 + 150 * (swiwt - tgtweight) / 10
+      local movdeg = 180 + 120 * (swiwt - tgtweight) / 3
       if movdeg < 30 then movdeg = 30 end
       if movdeg > 330 then movdeg = 330 end
       is = math.floor((movdeg - 22.5) * 3 + 0.5)
@@ -192,11 +220,18 @@ function read()
       end
       
    else
+      --print("In ELSE, lock:", lock)
       is = 0
       if lock then
 	 print("lock true, done")
-	 if tgtweight ~= lockwt then print("Set T:", lockwt) end
-	 tgtweight = lockwt 
+	 --if tgtweight ~= lockwt then print("Set T:", lockwt) end
+	 print("Set T:", lockwt)
+	 tgtweight = lockwt
+	 if not sent_to_google then -- make sure only done once
+	    send_via_forwarder(lockwt)
+	    send_mult_via_forwarder(lockwt, zero, calib)
+	    sent_to_google=true
+	 end
 	 
 	 --local movdeg = 180 + 150 * (lockwt - tgtweight) / 10
 	 --if movdeg < 30 then movdeg = 30 end
@@ -240,24 +275,29 @@ disp:setFont(u8g2.font_6x10_tf)
 text = string.format("Hazel Scale V%.1f", 1.0)
 ww = disp:getStrWidth(text)
 disp:drawStr(dw/2 - ww/2, 20, text)
+print(text)
 
 disp:setFont(u8g2.font_6x10_tf)
 text = string.format("Raw Zero: %d", zero)
 ww = disp:getStrWidth(text)
 disp:drawStr(dw/2 - ww/2, 30, text)
+print(text)
 
 text = string.format("Cal Factor: %5.2f", calib)
 ww = disp:getStrWidth(text)
 disp:drawStr(dw/2 - ww/2, 40, text)
+print(text)
 
 text = string.format("Tgt Weight: %5.2f", tgtweight)
 ww = disp:getStrWidth(text)
 disp:drawStr(dw/2 - ww/2, 50, text)
+print(text)
 
 ipa = wifi.sta.getip()
 text = string.format("IP address: " .. ipa)
 ww = disp:getStrWidth(text)
 disp:drawStr(dw/2 - ww/2, 60, text)
+print(text)
 
 disp:sendBuffer()
 

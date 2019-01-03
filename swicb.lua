@@ -26,7 +26,7 @@ function step()
 end
 
 print("starting - doing setup")
-a = switec.setup(0,5,6,7,8,400)
+a = switec.setup(0,5,6,7,8,300)
 
 iseq = 0
 movtable= {22.5, 45, 90, 135, 180, 225, 270, 315, 337.5}
