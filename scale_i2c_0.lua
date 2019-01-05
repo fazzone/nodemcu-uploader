@@ -6,20 +6,37 @@ local Q1="entry.1967372928"
 local Q2="entry.1949919536"
 local Q3="entry.58067512"
 
+local fourQ="/forms/d/e/1FAIpQLSduu7su_pDsTa4RqXMZDtnP4VpZeAPSCL67Z_Cnm32YV4D6vw/formResponse"
+local fourQ1="entry.712941540"
+local fourQ2="entry.484786416"
+local fourQ3="entry.1737268520"
+local fourQ4="entry.805234295"
+
 local function send_via_forwarder(datapoint)
    local function _0_(code, data)
-      return print("got response ", code)
+      return print("via: got response ", code)
    end
    return http.post("http://54.245.181.150:4321", nil, sjson.encode({["survey-path"] = the_survey_url, data = {[the_entry_key] = datapoint}}), _0_)
 end
 
 local function send_mult_via_forwarder(data1, data2, data3)
    local function _0_(code, data)
-      return print("got response ", code)
+      return print("mult: got response ", code)
    end
    text= sjson.encode({["survey-path"] = threeQ, data = {[Q1] = data1, [Q2]=data2, [Q3]=data3}})
-   print("sj:", text)
-   return http.post("http://54.245.181.150:4321", nil, sjson.encode({["survey-path"] = threeQ, data = {[Q1] = data1, [Q2]=data2, [Q3]=data3}}), _0_)
+   --print("sj:", text)
+   return http.post("http://54.245.181.150:4321", nil, text, _0_)
+   --sjson.encode({["survey-path"] = threeQ, data = {[Q1] = data1, [Q2]=data2, [Q3]=data3}}), _0_)
+end
+
+local function send_four_via_forwarder(data1, data2, data3, data4)
+   local function _0_(code, data)
+      return print("four: got response ", code)
+   end
+   text= sjson.encode({["survey-path"] = fourQ, data = {[fourQ1] = data1, [fourQ2]=data2, [fourQ3]=data3, [fourQ4]=data4}})
+   --print("sj:", text)
+   return http.post("http://54.245.181.150:4321", nil, text, _0_)
+   --sjson.encode({["survey-path"] = fourQ, data = {[fourQ1] = data1, [fourQ2]=data2, [fourQ3]=data3, [fourQ4]=data4}}), _0_)
 end
 
 function swiendsleep()
@@ -39,6 +56,8 @@ function swiendrst() -- only call on startup
 end
 
 function dispSleep()
+   --print("dispsleep")
+   switec.moveto(0, 0)
    disp:clearBuffer()
    disp:sendBuffer()
    disp:setPowerSave(1)
@@ -50,7 +69,8 @@ function dispSleep()
    wtboxcar={}
    lastread = 0
    noreadings = true
-
+   gpio.mode(3, gpio.OUTPUT)
+   gpio.write(3,1) -- power off
 end
 
 function u8g2_prepare()
@@ -67,9 +87,9 @@ function init_i2c_display()
     local sla = 0x3c
     --print("init .. before i2c setup")
     ii = i2c.setup(0, sda, scl, i2c.SLOW)
-    print("i2c setup returns:", ii)
+    --print("i2c setup returns:", ii)
     disp = u8g2.ssd1306_i2c_128x64_noname(0, sla)
-    print("init .. after u8g2 call, disp:", disp)
+    --print("init .. after u8g2 call, disp:", disp)
 end
 
 calib = 10957.0
@@ -88,9 +108,11 @@ noreadings = true
 tgtweight = 270
 
 function read()
-   local wt = (hx711.read(0) - zero)/calib
+   rr = hx711.read(0)
+   
+   wt = (rr - zero)/calib
    --tmr.delay(100)
-   --print("in read, wt:", wt)
+   --print("in read, wt, lastread, rr:", wt, lastread, rr)
 
 --   if wt < 10 then
 --      lastread = wt
@@ -104,7 +126,7 @@ function read()
 
    if math.abs(wt-lastread) > 1 then   
       lastread = wt
-      print("|wt-lastread| > 1")
+      --print("|wt-lastread| > 1")
       if not lock then
 	 dispSleepTimer:stop()
 	 disp:setPowerSave(0)
@@ -114,7 +136,7 @@ function read()
 	 local hh = 30
 	 ww = disp:getStrWidth('----')
 	 disp:drawStr(dw/2 - ww/2, 10+hh, '----')
-	 print("----")
+	 --print("----")
 	 disp:sendBuffer()
       end
       swiendread()
@@ -201,11 +223,11 @@ function read()
       else
 	 text = string.format("(%.1f)", tgtweight)
       end
-      print(text)
+      --print(text)
       ww = disp:getStrWidth(text)
       disp:drawStr(dw/2 - ww/2, 30+hh, text)
       text = string.format("T: %.1f", tgtweight)
-      print(text)
+      --print(text)
       disp:sendBuffer()
       
       if lock then swiwt = lockwt else swiwt = avg end
@@ -219,7 +241,7 @@ function read()
 	 switec.moveto(0, 0, swiendread)
       end
       
-   else
+   else -- wt <= 10
       --print("In ELSE, lock:", lock)
       is = 0
       if lock then
@@ -228,9 +250,21 @@ function read()
 	 print("Set T:", lockwt)
 	 tgtweight = lockwt
 	 if not sent_to_google then -- make sure only done once
-	    send_via_forwarder(lockwt)
-	    send_mult_via_forwarder(lockwt, zero, calib)
+	    --send_via_forwarder(lockwt)
+	    --send_mult_via_forwarder(lockwt, zero, calib)
+	    vbatt = adc.read(0)
+	    --print("send four", lockwt, zero, calib, vbatt)
+	    send_four_via_forwarder(lockwt, zero, calib, vbatt)
 	    sent_to_google=true
+	    -- persist lockwt as new tgtweight
+	    if file.open("target.dat", "w+") then
+	       file.writeline(string.format("%f", lockwt))
+	       file.close()
+	       --print("closed file target.dat")
+	    else
+	       print("could not open target.dat")
+	    end
+
 	 end
 	 
 	 --local movdeg = 180 + 150 * (lockwt - tgtweight) / 10
@@ -238,7 +272,7 @@ function read()
 	 --if movdeg > 330 then movdeg = 330 end
 	 --is = math.floor((movdeg - 22.5) * 3 + 0.5)
 	 switec.moveto(0, 0, swiendread)
-      else
+      else -- if not lock...
 	 switec.moveto(0, 0, swiendread)
       end
 
@@ -247,6 +281,26 @@ function read()
 
 end
 
+vbatt1 = adc.read(0)
+
+gpio.mode(3, gpio.OUTPUT)
+gpio.write(3,0) -- power on
+
+if file.exists("target.dat") then
+   --print("target.dat exists, reading")
+   if file.open("target.dat", "r") then
+      rl = file.readline()
+      --print("read:", rl)
+      tgtweight = tonumber(rl)
+      --print("tgtweight:", tgtweight)
+      file.close()
+   else
+      print("could not open target.dat for reading")
+   end
+else
+   print("no target.dat, seeding with 270")
+   tgtweight = 270.0
+end
 
 init_i2c_display()
 u8g2_prepare()
@@ -266,51 +320,58 @@ for i=1, 5, 1 do
 end
 zero = zs/5
 
-print("scale raw zero:", zero)
+--print("scale raw zero:", zero)
 
 disp:setPowerSave(0)
 disp:clearBuffer()
 
 disp:setFont(u8g2.font_6x10_tf)
-text = string.format("Hazel Scale V%.1f", 1.0)
+text = string.format("Delta Scale V%.1f", 1.0)
 ww = disp:getStrWidth(text)
 disp:drawStr(dw/2 - ww/2, 20, text)
-print(text)
+--print(text)
 
 disp:setFont(u8g2.font_6x10_tf)
-text = string.format("Raw Zero: %d", zero)
+text = "--> Step On Now <--"
 ww = disp:getStrWidth(text)
 disp:drawStr(dw/2 - ww/2, 30, text)
-print(text)
+--print(text)
 
-text = string.format("Cal Factor: %5.2f", calib)
+text = string.format("Prev Weight: %5.2f", tgtweight)
 ww = disp:getStrWidth(text)
 disp:drawStr(dw/2 - ww/2, 40, text)
-print(text)
-
-text = string.format("Tgt Weight: %5.2f", tgtweight)
-ww = disp:getStrWidth(text)
-disp:drawStr(dw/2 - ww/2, 50, text)
-print(text)
+--print(text)
 
 ipa = wifi.sta.getip()
 text = string.format("IP address: " .. ipa)
 ww = disp:getStrWidth(text)
+disp:drawStr(dw/2 - ww/2, 50, text)
+--print(text)
+
+hh = node.heap()
+text = string.format("Heap: " .. hh)
+ww = disp:getStrWidth(text)
 disp:drawStr(dw/2 - ww/2, 60, text)
-print(text)
 
 disp:sendBuffer()
+
+vbatt2 = adc.read(0)
+send_mult_via_forwarder(0, vbatt1, vbatt2)   
 
 readtimer=tmr.create()
 readtimer:register(1000, tmr.ALARM_SEMI, read)
 
 dispSleepTimer=tmr.create()
-dispSleepTimer:register(5000, tmr.ALARM_SEMI, dispSleep)
+dispSleepTimer:register(10000, tmr.ALARM_SEMI, dispSleep)
 
 -- setup motor control: channel 0, pins 5,6,7,8 and 200 deg/sec
 
 switec.setup(0,5,6,7,8,200)-- position specified in 1/3s of degree so it goes from 0 to 945 (315 degrees full scale * 3)
 
 switec.moveto(0, -1000, swiendrst) -- force against CCW stop before reset (done in swiendrst())
+
+--switec.reset(0)
+--swiendread()
+
 
 

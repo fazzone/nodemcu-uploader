@@ -1,6 +1,8 @@
 function ipcallback(T)
    print("\n\tCallback: STA - GOT IP".."\n\tStation IP: "..T.IP.."\n\tSubnet mask: "..
 	    T.netmask.."\n\tGateway IP: "..T.gateway)
+   --print("about to dofile('s.lua')")
+   --dofile("s.lua")
 end
 
 print('init.lua for WiFi Station')
