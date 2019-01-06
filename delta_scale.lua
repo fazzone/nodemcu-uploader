@@ -26,8 +26,6 @@ local function send_four_via_forwarder(data1, data2, data3, data4)
 end
 
 function ipcallback(T)
-   --print("\n\tCallback: STA - GOT IP".."\n\tStation IP: "..T.IP.."\n\tSubnet mask: "..
-   -- T.netmask.."\n\tGateway IP: "..T.gateway)
    wifi_sta=T.IP
    print("IP:", wifi_sta)
    send_mult_via_forwarder(0, vbatt1, vbatt2)   
@@ -75,8 +73,8 @@ function init_i2c_display()
     disp:setFontDirection(0)
 end
 
--- scale calib factors
-calib = 10957.0
+-- scale calib factors -- zero measured each time, calib over-ridden by value in delta_target.jsn
+calib = 10957.0 
 zero = 0
 
 -- screen size in pixels
@@ -120,9 +118,9 @@ function read()
    
    wt = (rr - zero)/calib
 
-   if math.abs(wt-lastread) > 1 then   
+   if math.abs(wt-lastread) > 2 then -- last two readings within about 1%   
       lastread = wt
-      --print("|wt-lastread| > 1")
+      --print("|wt-lastread| > 2")
       if not lock then
 	 dispSleepTimer:stop()
 	 disp:setPowerSave(0)
@@ -138,8 +136,13 @@ function read()
    lastread = wt
 
    if wt > 10 then
-
+      
+      -- select which user this is. handle normal ops and initial setting of table
       if iuser == 0 then
+	 if tgt_table[1] == 0 then tgt_table[1] = wt end
+	 if tgt_table[2] == 0 and math.abs(wt - tgt_table[1]) > 10 then
+	    tgt_table[2] = wt
+	 end
 	 if math.abs(wt - tgt_table[1]) <= math.abs(wt - tgt_table[2]) then
 	    iuser = 1
 	 else
@@ -151,6 +154,7 @@ function read()
       
       wtboxcar[iwt] = wt
 
+      -- compute average and sum of squares of values in wtboxcar{}
       local sum = 0
       jj = iwt
       for i=1, jj, 1 do
@@ -176,13 +180,15 @@ function read()
       else
 	 iwt = iwt + 1
       end
-      
+
       dispSleepTimer:stop()
       disp:setPowerSave(0)
       disp:clearBuffer()
 
+      -- display jwt as progress indicator (sort of ugly on display)
       cdisp(u8g2.font_6x10_tf, string.format("%d", jwt), 115, 45)
-      
+
+      -- do cute "rotating pie slice" with drawDisc to show progress
       local text
       if lock then
 	 text = string.format("%3.1f", lockwt)
@@ -197,8 +203,10 @@ function read()
 	 end
       end
       
+      -- display lock weight or running average as weighing proceeds
       cdisp(u8g2.font_inb24_mr, text, 0, 40)
 
+      -- if good reading (boxcar avg within sumsq tolerance) tell user to get off else show last wt
       if lock then
 	 text = "GTFO"
       else
@@ -208,7 +216,8 @@ function read()
       cdisp(u8g2.font_inb16_mr, text, 0, 55)
 
       disp:sendBuffer()
-      
+
+      -- move the display needle to the avg or to the lock weight as apprpriate
       if lock then swiwt = lockwt else swiwt = avg end
       local movdeg = 180 + 120 * (swiwt - tgtweight) / 3
       if movdeg < 30 then movdeg = 30 end
@@ -222,11 +231,10 @@ function read()
       
    else -- wt <= 10
       is = 0
-      if lock then
+      if lock then -- we have a lock, and wt < 10 so the user is off the scale .. record and tidy up
 	 tgtweight = lockwt
-	 if not sent_to_google and wifi_sta then -- make sure only done once
-	    vbatt = adc.read(0)
-	    send_four_via_forwarder(lockwt, zero, calib, vbatt)
+	 if not sent_to_google and wifi_sta then -- make sure only done once, and only if wifi online
+	    send_four_via_forwarder(lockwt, zero, calib, vbatt1) -- use (clean) initial adc reading
 	    sent_to_google=true
 	    cdisp(u8g2.font_6x10_tf, string.format("Sent: IP=%s", wifi_sta), 0, 63)
 	    disp:sendBuffer()
@@ -238,7 +246,7 @@ function read()
 	       print("ErrT")
 	    end
 	 end
-	 --switec.moveto(0, 0, swiendread)
+	 --switec.moveto(0, 0, swiendread) -- removed .. don't move needle at this moment
       else -- if not lock...
 	 switec.moveto(0, 0, swiendread)
       end
@@ -246,10 +254,16 @@ function read()
    end
 end
 
--- wakeup here. take gpio3 low .. it will go high later to power off the power controller
--- then setup wifi and register callback on getting IP addr
--- then check battery with no significant load. save for reporting when wifi online
--- then open the persist file and read the last weight and off we go..
+--[[
+
+Formal start of execution. Print a wakeup message.
+   then take gpio3 low .. it will go high later to power off the power controller
+   then check battery with no significant load. save for reporting when wifi online
+   then setup wifi and register callback on getting IP addr
+   then open the persist file and read the last weight 
+   then read other jsn files for wifi and google survey ... and off we go ...
+
+--]]
 
 print("Delta Scale")
 
@@ -259,7 +273,7 @@ gpio.write(3,0)
 vbatt1 = adc.read(0)
 
 -- read the wifi config file to get ssid and pw and other wifi state, start the station
-
+-- set a callback for when an IP addr is obtained
 if file.exists(wififile) then
    if file.open(wififile, "r") then
       config_tbl = sjson.decode(file.read())
@@ -276,7 +290,7 @@ wifi.sta.config(config_tbl)
 wifi.eventmon.register(wifi.eventmon.STA_GOT_IP, ipcallback)
 
 -- check for and open the persistence file that contains the last weights of the users (now 2)
--- if none exists, start with a new file filled with zeros
+-- if none exists, start with a new file filled with zeros plus a calib const
 
 if file.exists(persfile) then
    if file.open(persfile, "r") then
@@ -287,8 +301,9 @@ if file.exists(persfile) then
    end
 else
    print("Info:T")
-   tgt_table={0, 0}
+   tgt_table={0, 0, calib=10957}
 end
+calib = tgt_table.calib
 
 -- read the google survey config file
 
@@ -303,7 +318,7 @@ else
    print("NoGoog")
 end
 
--- init the display, scale and steppers, then get and remember average of the scale zero
+-- init the display, scale and then get and remember average of the scale zero
 
 init_i2c_display()
 
@@ -316,36 +331,32 @@ for i=1, 5, 1 do
 end
 zero = zs/5
 
--- wake up the display, and clear remnants of buffer
-
+-- wake up the display, and clear any remnants in buffer
 disp:setPowerSave(0)
 disp:clearBuffer()
 
+--display startup messages on OLED
 cdisp(u8g2.font_6x10_tf, string.format("Delta Scale V%.1f", 1.0),             0, 20)
 cdisp(u8g2.font_6x10_tf, "--> Step On <--",                                   0, 30)
-cdisp(u8g2.font_6x10_tf, string.format("(%5.2f, %5.2f)",
+cdisp(u8g2.font_6x10_tf, string.format("(%4.2f, %4.2f)",
 				                 tgt_table[1], tgt_table[2]), 0, 40)
 cdisp(u8g2.font_6x10_tf, string.format("Heap: " .. node.heap()),              0, 50)
 
 disp:sendBuffer()
 
 -- for debugging: meas battery again, with display and scale operating .. log to google from ipcallback
-
 vbatt2 = adc.read(0)
 
 -- set up timers for periodic reading, and for going to sleep if no activity
-
 readtimer=tmr.create()
-readtimer:register(1000, tmr.ALARM_SEMI, read)
+readtimer:register(500, tmr.ALARM_SEMI, read)
 
 dispSleepTimer=tmr.create()
-dispSleepTimer:register(10000, tmr.ALARM_SEMI, dispSleep)
+dispSleepTimer:register(8000, tmr.ALARM_SEMI, dispSleep)
 
 -- setup motor control: channel 0, pins 5,6,7,8 and 200 deg/sec
 -- position specified in 1/3s of degree so it goes from 0 to 945 (315 degrees full scale * 3)
-
 switec.setup(0,5,6,7,8,200)
 
--- force against CCW stop before reset (done in swiendrst())
-
+-- force against CCW stop before reset to calibrate "0" (done in swiendrst())
 switec.moveto(0, -1000, swiendrst) 
