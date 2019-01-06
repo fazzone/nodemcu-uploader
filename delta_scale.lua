@@ -135,7 +135,7 @@ function read()
 
    lastread = wt
 
-   if wt > 10 then
+   if wt > 10 then -- someone is on the scale
       
       -- select which user this is. handle normal ops and initial setting of table
       if iuser == 0 then
@@ -167,12 +167,14 @@ function read()
 	 sumsq = sumsq + (avg - wtboxcar[i])^2
       end
       stddev = math.sqrt(sumsq/jj)
-      
+
+      -- keep track of readings. wtboxlen is ring buffer, jwt tracks total
+      -- and ensures we have a full ring buffer in addition to acceptable stddev
       jwt = jwt + 1
 
       if (jwt >= wtboxlen) and (stddev < 0.15)  and (not lock) then
 	 lock = true
-	 lockwt = (math.floor(wt*10) + 0.5) / 10
+	 lockwt = (math.floor(wt*10) + 0.5) / 10 -- round to nearest 0.1 lb
       end
 
       if iwt >= wtboxlen then
@@ -181,6 +183,7 @@ function read()
 	 iwt = iwt + 1
       end
 
+      -- make sure we don't go to sleep in the middle of this, wakeup and clear display buffer
       dispSleepTimer:stop()
       disp:setPowerSave(0)
       disp:clearBuffer()
@@ -230,7 +233,6 @@ function read()
       end
       
    else -- wt <= 10
-      is = 0
       if lock then -- we have a lock, and wt < 10 so the user is off the scale .. record and tidy up
 	 tgtweight = lockwt
 	 if not sent_to_google and wifi_sta then -- make sure only done once, and only if wifi online
