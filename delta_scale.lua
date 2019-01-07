@@ -1,3 +1,22 @@
+function print_socket(str)
+   srv = net.createConnection(net.TCP, 0)
+   srv:on("receive", function(sck, c) print("c:",c) end)
+   -- Wait for connection before sending.
+   srv:on("connection", function(sck, c)
+	     --print("in connection, about to send")
+	     --print("sck, c:", sck, c)
+	     local secs=tmr.time()
+	     local hrs=math.floor(secs/(60*60))
+	     secs = secs - hrs*60*60
+	     local mins=math.floor(secs/60)
+	     secs=secs-mins*60
+	     
+	     sck:send(string.format("%d:%d:%.1f: %s", hrs, mins, secs, str))
+	     sck:close()
+   end)
+   srv:connect(10138, "10.0.0.48")
+end
+
 function cdisp(font, text, x, y)
    local ww, xd
    disp:setFont(font)
@@ -10,25 +29,33 @@ local function send_mult_via_forwarder(data1, data2, data3)
    local function _0_(code, data)
       return print("mult:", code, data)
    end
-   text= sjson.encode({["survey-path"] = goog_tbl.fR3,
-	 data = {[goog_tbl.fR3Q1] = data1, [goog_tbl.fR3Q2]=data2, [goog_tbl.fR3Q3]=data3}})
-   return http.post(goog_tbl.AWSfwd, nil, text, _0_)
+   text= sjson.encode({["survey-path"] = config_tbl.fR3,
+	 data = {[config_tbl.fR3Q1] = data1, [config_tbl.fR3Q2]=data2, [config_tbl.fR3Q3]=data3}})
+   return http.post(config_tbl.AWSfwd, nil, text, _0_)
 end
 
-local function send_four_via_forwarder(data1, data2, data3, data4)
+local function send_four_via_forwarder(iuser, data1, data2, data3, data4)
    local function _0_(code, data)
-      return print("four:", code, data)
+      return print("four:", code, data, iuser)
    end
-   text= sjson.encode({["survey-path"] = goog_tbl.fR4,
-	 data ={[goog_tbl.fR4Q1] = data1, [goog_tbl.fR4Q2]=data2,
-	    [goog_tbl.fR4Q3]=data3, [goog_tbl.fR4Q4]=data4}})
-   return http.post(goog_tbl.AWSfwd, nil, text, _0_)
+   if iuser == 1 then
+      text= sjson.encode({["survey-path"] = config_tbl.fR4_U1,
+	    data ={[config_tbl.fR4_U1_Q1] = data1, [config_tbl.fR4_U1_Q2]=data2,
+	       [config_tbl.fR4_U1_Q3]=data3, [config_tbl.fR4_U1_Q4]=data4}})
+   else
+      text= sjson.encode({["survey-path"] = config_tbl.fR4_U2,
+	    data ={[config_tbl.fR4_U2_Q1] = data1, [config_tbl.fR4_U2_Q2]=data2,
+	       [config_tbl.fR4_U2_Q3]=data3, [config_tbl.fR4_U2_Q4]=data4}})
+   end
+   
+   return http.post(config_tbl.AWSfwd, nil, text, _0_)
 end
 
 function ipcallback(T)
    wifi_sta=T.IP
    print("IP:", wifi_sta)
    send_mult_via_forwarder(0, vbatt1, vbatt2)   
+   print_socket("Delta Scale Awake")
 end
 
 function swiendsleep()
@@ -73,7 +100,7 @@ function init_i2c_display()
     disp:setFontDirection(0)
 end
 
--- scale calib factors -- zero measured each time, calib over-ridden by value in delta_target.jsn
+-- scale calib factors -- zero measured each time, calib over-ridden by value in delta_config.jsn
 calib = 10957.0 
 zero = 0
 
@@ -88,7 +115,7 @@ iseq = 1
 wtboxcar={}
 iwt = 1
 jwt = 1
-wtboxlen=7
+wtboxlen=5
 lock = false
 lockwt = 0
 lastread = 0
@@ -99,17 +126,14 @@ wifi_ipa = nil
 sent_to_google=false
 
 -- persistent state of last weights for user(s)
-persfile="delta_target.jsn"
-tgt_table={}
+-- separate from rest of configs since it's written on each weighing
+targetfile="delta_target.jsn"
+target_tbl={}
 iuser = 0
 
--- wifi login info (ssid and pw)
-wififile="delta_wifi.jsn"
+--strings for google survey responses, AWS forwarder and gain calibration
+configfile="delta_config.jsn"
 config_tbl={}
-
---strings for google survey responses and AWS forwarder
-googfile="delta_goog.jsn"
-goog_tbl={}
 
 -- main reading loop
 
@@ -139,21 +163,22 @@ function read()
       
       -- select which user this is. handle normal ops and initial setting of table
       if iuser == 0 then
-	 if tgt_table[1] == 0 then tgt_table[1] = wt end
-	 if tgt_table[2] == 0 and math.abs(wt - tgt_table[1]) > 10 then
-	    tgt_table[2] = wt
+	 if target_tbl[1] == 0 then target_tbl[1] = wt end
+	 if target_tbl[2] == 0 and (math.abs(wt - target_tbl[1]) > 10) then
+	    target_tbl[2] = wt
 	 end
-	 if math.abs(wt - tgt_table[1]) <= math.abs(wt - tgt_table[2]) then
+	 if math.abs(wt - target_tbl[1]) <= math.abs(wt - target_tbl[2]) then
 	    iuser = 1
 	 else
 	    iuser = 2
 	 end
-	 tgtweight = tgt_table[iuser]
-	 print("iuser,tgtweight:", iuser, tgtweight)
+	 tgtweight = target_tbl[iuser]
+	 print_socket(string.format("iuser,tgtweight: %d %f", iuser, tgtweight))
       end
       
       wtboxcar[iwt] = wt
-
+      print_socket(string.format("iwt, wt %d %f", iwt, wt))
+      
       -- compute average and sum of squares of values in wtboxcar{}
       local sum = 0
       jj = iwt
@@ -170,19 +195,21 @@ function read()
 
       -- keep track of readings. wtboxlen is ring buffer, jwt tracks total
       -- and ensures we have a full ring buffer in addition to acceptable stddev
+      -- jwt >= wtboxlen+2 effectively tosses the first two readings while stabilizing
       jwt = jwt + 1
 
-      if (jwt >= wtboxlen) and (stddev < 0.15)  and (not lock) then
+      if (jwt >= wtboxlen+2) and (stddev < 0.15)  and (not lock) then
 	 lock = true
-	 lockwt = (math.floor(wt*10) + 0.5) / 10 -- round to nearest 0.1 lb
-      end
-
-      if iwt >= wtboxlen then
-	 iwt = 1
+	 lockwt = (math.floor(avg*10) + 0.5) / 10 -- round to nearest 0.1 lb
+	 print_socket(string.format("Lock: %f", lockwt))
       else
-	 iwt = iwt + 1
+	 if iwt >= wtboxlen then
+	    iwt = 1
+	 else
+	    iwt = iwt + 1
+	 end
       end
-
+      
       -- make sure we don't go to sleep in the middle of this, wakeup and clear display buffer
       dispSleepTimer:stop()
       disp:setPowerSave(0)
@@ -236,13 +263,16 @@ function read()
       if lock then -- we have a lock, and wt < 10 so the user is off the scale .. record and tidy up
 	 tgtweight = lockwt
 	 if not sent_to_google and wifi_sta then -- make sure only done once, and only if wifi online
-	    send_four_via_forwarder(lockwt, zero, calib, vbatt1) -- use (clean) initial adc reading
+	    send_four_via_forwarder(iuser, lockwt, zero, calib, vbatt1) -- use (clean) initial adc reading
 	    sent_to_google=true
 	    cdisp(u8g2.font_6x10_tf, string.format("Sent: IP=%s", wifi_sta), 0, 63)
 	    disp:sendBuffer()
-	    if file.open(persfile, "w+") and (iuser ~= 0 ) then -- persist lockwt as new tgtweight
-	       tgt_table[iuser] = lockwt
-	       file.write(sjson.encode(tgt_table))
+	    if file.open(targetfile, "w+") and (iuser ~= 0 ) then -- persist lockwt as new tgtweight
+	       target_tbl[iuser] = lockwt
+	       --print("iuser, target_tbl[iuser], lockwt:", iuser, target_tbl[iuser], lockwt)
+	       tt=sjson.encode(target_tbl)
+	       --print("tt=", tt)
+	       file.write(tt)
 	       file.close()
 	    else
 	       print("ErrT")
@@ -259,11 +289,12 @@ end
 --[[
 
 Formal start of execution. Print a wakeup message.
-   then take gpio3 low .. it will go high later to power off the power controller
-   then check battery with no significant load. save for reporting when wifi online
-   then setup wifi and register callback on getting IP addr
-   then open the persist file and read the last weight 
-   then read other jsn files for wifi and google survey ... and off we go ...
+
+   -- take gpio3 low .. it will go high later to power off the power controller
+   -- check battery with no significant load. save for reporting when wifi online
+   -- setup wifi and register callback on getting IP addr
+   -- open the target weight file and read the last weights for users 
+   -- read other configs (wifi, AWS fwder, google survey
 
 --]]
 
@@ -274,51 +305,45 @@ gpio.write(3,0)
 
 vbatt1 = adc.read(0)
 
--- read the wifi config file to get ssid and pw and other wifi state, start the station
--- set a callback for when an IP addr is obtained
-if file.exists(wififile) then
-   if file.open(wififile, "r") then
-      config_tbl = sjson.decode(file.read())
-      file.close()
-   else
-      print("ErrWiFi")
-   end
-else
-   print("NoWifi")
-end
-
-wifi.setmode(wifi.STATION)
-wifi.sta.config(config_tbl)
-wifi.eventmon.register(wifi.eventmon.STA_GOT_IP, ipcallback)
-
 -- check for and open the persistence file that contains the last weights of the users (now 2)
 -- if none exists, start with a new file filled with zeros plus a calib const
 
-if file.exists(persfile) then
-   if file.open(persfile, "r") then
-      tgt_table = sjson.decode(file.read())
+if file.exists(targetfile) then
+   if file.open(targetfile, "r") then
+      target_tbl = sjson.decode(file.read())
+      print("read and decoded targetfile:", target_tbl[1], target_tbl[2])
       file.close()
    else
-      print("ErrO")
+      print("Err:T")
    end
 else
-   print("Info:T")
-   tgt_table={0, 0, calib=10957}
+   print("Info:T") -- no target file exists .. seed values, write later
+   target_tbl = {0,0}
 end
-calib = tgt_table.calib
 
--- read the google survey config file
+-- read the config file
 
-if file.exists(googfile) then
-   if file.open(googfile, "r") then
-      goog_tbl = sjson.decode(file.read())
+if file.exists(configfile) then
+   if file.open(configfile, "r") then
+      config_tbl = sjson.decode(file.read())
       file.close()
    else
-      print("ErrGoog")
+      print("Err:C")
    end
 else
-   print("NoGoog")
+   print("NoF:C")
 end
+
+calib = config_tbl.calib
+
+-- start up wifi in STA mode, setup a callback for when IP is assigned
+
+print("config_tbl.ssid:", config_tbl.ssid)
+print("config_tbl.pwd:", config_tbl.pwd)
+
+print("setmode:", wifi.setmode(wifi.STATION))
+print("config:", wifi.sta.config(config_tbl))
+wifi.eventmon.register(wifi.eventmon.STA_GOT_IP, ipcallback)
 
 -- init the display, scale and then get and remember average of the scale zero
 
@@ -334,22 +359,26 @@ end
 zero = zs/5
 
 -- wake up the display, and clear any remnants in buffer
+
 disp:setPowerSave(0)
 disp:clearBuffer()
 
 --display startup messages on OLED
+
 cdisp(u8g2.font_6x10_tf, string.format("Delta Scale V%.1f", 1.0),             0, 20)
 cdisp(u8g2.font_6x10_tf, "--> Step On <--",                                   0, 30)
 cdisp(u8g2.font_6x10_tf, string.format("(%4.2f, %4.2f)",
-				                 tgt_table[1], tgt_table[2]), 0, 40)
+				               target_tbl[1], target_tbl[2]), 0, 40)
 cdisp(u8g2.font_6x10_tf, string.format("Heap: " .. node.heap()),              0, 50)
 
 disp:sendBuffer()
 
 -- for debugging: meas battery again, with display and scale operating .. log to google from ipcallback
+
 vbatt2 = adc.read(0)
 
 -- set up timers for periodic reading, and for going to sleep if no activity
+
 readtimer=tmr.create()
 readtimer:register(500, tmr.ALARM_SEMI, read)
 
@@ -358,7 +387,10 @@ dispSleepTimer:register(8000, tmr.ALARM_SEMI, dispSleep)
 
 -- setup motor control: channel 0, pins 5,6,7,8 and 200 deg/sec
 -- position specified in 1/3s of degree so it goes from 0 to 945 (315 degrees full scale * 3)
+
 switec.setup(0,5,6,7,8,200)
 
 -- force against CCW stop before reset to calibrate "0" (done in swiendrst())
-switec.moveto(0, -1000, swiendrst) 
+-- if always returned to physical zero, perhaps we could just do -10??
+
+switec.moveto(0, -100, swiendrst) 
