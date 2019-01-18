@@ -1,17 +1,16 @@
 function print_socket(str)
+   -- does not block on waiting till last message sent, so given esp8266 runtime it risks
+   -- losing messages sent too close in time. not sure it's worth it to buffer it...sck:send can
+   -- take a completion callback function for this purpose..
+   -- also does not work till an IP addr is obtained (obviously) so if we buffer we can account for
+   -- that too... sigh
    srv = net.createConnection(net.TCP, 0)
    srv:on("receive", function(sck, c) print("c:",c) end)
    -- Wait for connection before sending.
    srv:on("connection", function(sck, c)
 	     --print("in connection, about to send")
 	     --print("sck, c:", sck, c)
-	     local secs=tmr.time()
-	     local hrs=math.floor(secs/(60*60))
-	     secs = secs - hrs*60*60
-	     local mins=math.floor(secs/60)
-	     secs=secs-mins*60
-	     
-	     sck:send(string.format("%d:%d:%.1f: %s", hrs, mins, secs, str))
+	     sck:send(str)
 	     sck:close()
    end)
    srv:connect(10138, "10.0.0.48")
@@ -55,7 +54,7 @@ function ipcallback(T)
    wifi_sta=T.IP
    print("IP:", wifi_sta)
    send_mult_via_forwarder(0, vbatt1, vbatt2)   
-   print_socket("Delta Scale Awake")
+   print_socket("Delta Scale Awake - IP:"..wifi_sta)
 end
 
 function swiendsleep()
@@ -71,8 +70,7 @@ function swiendrst() -- only call on startup
    swiendread()
 end
 
-function dispSleep()
-   switec.moveto(0, 0, swiendread)
+function dispSleepNow()
    disp:clearBuffer()
    disp:sendBuffer()
    disp:setPowerSave(1)
@@ -86,6 +84,10 @@ function dispSleep()
    lastread = 0
    gpio.mode(3, gpio.OUTPUT)
    gpio.write(3,1) -- signal power controller to turn power off
+end
+
+function dispSleep()
+   switec.moveto(0, 0, dispSleepNow)
 end
 
 function init_i2c_display()
@@ -177,7 +179,7 @@ function read()
       end
       
       wtboxcar[iwt] = wt
-      print_socket(string.format("iwt, wt %d %f", iwt, wt))
+      --print_socket(string.format("iwt, wt %d %f", iwt, wt))
       
       -- compute average and sum of squares of values in wtboxcar{}
       local sum = 0
@@ -198,10 +200,10 @@ function read()
       -- jwt >= wtboxlen+2 effectively tosses the first two readings while stabilizing
       jwt = jwt + 1
 
-      if (jwt >= wtboxlen+2) and (stddev < 0.15)  and (not lock) then
+      if (jwt >= wtboxlen+4) and (stddev < 0.15)  and (not lock) then
 	 lock = true
 	 lockwt = (math.floor(avg*10) + 0.5) / 10 -- round to nearest 0.1 lb
-	 print_socket(string.format("Lock: %f", lockwt))
+	 print_socket(string.format("Lock: %f %d", lockwt, jwt))
       else
 	 if iwt >= wtboxlen then
 	    iwt = 1
@@ -383,7 +385,7 @@ readtimer=tmr.create()
 readtimer:register(500, tmr.ALARM_SEMI, read)
 
 dispSleepTimer=tmr.create()
-dispSleepTimer:register(8000, tmr.ALARM_SEMI, dispSleep)
+dispSleepTimer:register(10000, tmr.ALARM_SEMI, dispSleep)
 
 -- setup motor control: channel 0, pins 5,6,7,8 and 200 deg/sec
 -- position specified in 1/3s of degree so it goes from 0 to 945 (315 degrees full scale * 3)
@@ -393,4 +395,4 @@ switec.setup(0,5,6,7,8,200)
 -- force against CCW stop before reset to calibrate "0" (done in swiendrst())
 -- if always returned to physical zero, perhaps we could just do -10??
 
-switec.moveto(0, -100, swiendrst) 
+switec.moveto(0, -10, swiendrst) 

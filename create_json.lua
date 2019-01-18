@@ -53,6 +53,9 @@ config_tbl.save=true
 
 config_tbl.calib = 10957
 
+config_tbl.socket_server="10.0.0.48"
+config_tbl.socket_port=10138
+
 print("opening delta_config.jsn")
 file.open("delta_config.jsn", "w+")
 tj=sjson.encode(config_tbl)
@@ -61,7 +64,8 @@ file.write(tj)
 file.close()
 
 ------------------------------------
-
+--uncomment to create delta_target.jsn
+--[[
 target_tbl={0,0}
 
 print("opening delta_target.jsn")
@@ -70,5 +74,6 @@ tj=sjson.encode(target_tbl)
 print("tj:", tj)
 file.write(tj)
 file.close()
+--]]
 
 
