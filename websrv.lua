@@ -125,22 +125,25 @@ function sndStrCB(sock)
    sock:close()
 end
 
-lc = 0
+bc = 0
 
 function sndFileCB(sock)
    local fp = sockDrawer[sock].filePointer
    local fn = sockDrawer[sock].fileName
-   local ll = fp:readline()
+   --local ll = fp:readline()
+   local ll = fp:read(512)
    if ll then
       sock:send(ll)
-      lc = lc + 1
-      if lc % 100 == 0 then
-	 print("lc", lc)
+      bc = bc + 1
+      if bc % 100 == 0 then
+	 print("bc", bc)
 	 print("heap:", node.heap())
       end
    else
       print("closing file and socket:", fn, sock)
-      print("file loaded, time (ms):", fn, (tmr.now()-loadStart)/1000.)
+      if loadStart then
+	 print("file loaded, time (ms):", fn, (tmr.now()-loadStart)/1000.)
+      end
       fp:close()
       sock:close()
       sockDrawer[sock] = nil
@@ -156,7 +159,7 @@ function sendFile(fn, prefix, sock)
    local pp = string.format(prefix, fs.size)
    sockDrawer[sock] = {fileName=fn, filePointer=fp, filePrefix=pp}
    print("added to sD, sock #sD:", sock, #sockDrawer)
-   if not loadStart then loadStart = tmr.now() end
+   if fn == "websrv.html" then loadStart = tmr.now() end
    sock:on("sent", sndFileCB)
    sock:send(sockDrawer[sock].filePrefix)
    return true
