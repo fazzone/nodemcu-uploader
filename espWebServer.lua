@@ -43,7 +43,8 @@ local bufsize
 local sockDrawer={}
 
 function espWebServer.setAjaxCB(functionName)
-   -- callback will be called with argument = parsed variable table from query string
+   -- callback function. called with argument = parsed variable (lua) table from GET's query string
+   -- user should return the string that will be the content payload of the HTTP GET request
    cbFunction = functionName
    return
 end
@@ -51,7 +52,6 @@ end
 function espWebServer.start(port, bs)
    local srv=net.createServer(net.TCP)
    bufsize = bs
-   print("Starting receiver on port 80, buffersize", bs)
    srv:listen(port,function(conn) conn:on("receive", receiver) end)
    return srv
 end
@@ -118,7 +118,6 @@ function receiver(client,request)
 	 return
       end
    end
-
    local iSock = 0
    for _,_ in pairs(sockDrawer) do
       iSock = iSock + 1

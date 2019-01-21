@@ -114,6 +114,8 @@ end
 
 server.setAjaxCB(xhrCB)
 server.start(80, 512)
+print("Starting web server on port 80, buffer size:", bs)
+
 
 pwm.setup (pwmPumpPin,   1000, 0)         
 
