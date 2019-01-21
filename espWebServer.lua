@@ -2,7 +2,7 @@
 
 espWebServer.lua
 
-a very small (130 LOC!) footprint HTTP server for use in the nodemcu environment
+a very small (~100 LOC!) footprint HTTP server for use in the nodemcu environment
 
 set up as a lua module so you can do:
 
