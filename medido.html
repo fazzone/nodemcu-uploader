@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <title>Medido Pump</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
+    <style>
+      html {
+      font-family: "Arial",Helvetica, sans-serif;
+      }
+      .button {
+      background-color: #4CAF50; /* Green */
+      border: none;
+      color: white;
+      padding: 15px 32px;
+      text-align: center;
+      text-decoration: none;
+      display: block;
+      width: 95%;
+      font-size: 30px;
+      /* margin: 4px 8px; */
+      cursor: pointer;
+      }
+      .button2 {background-color: #16aa20;} /* Green (blue:#2934b2) */
+      .button3 {background-color: #f44336;} /* Red */ 
+      .button4 {background-color: #e7e7e7; color: black;} /* Gray */ 
+      .button5 {background-color: #555555;} /* Black */
+      .slidecontainer {
+      width: 100%;
+      }
+      .slider {
+      -webkit-appearance: none;
+      width: 95%;
+      height: 80px;
+      background: #d3d3d3;
+      outline: none;
+      opacity: 0.7;
+      -webkit-transition: .2s;
+      transition: opacity .2s;
+      }
+      .slider:hover {
+      opacity: 1;1
+      }
+      .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 80px;
+      height: 80px;
+      background: #0066ff;
+      cursor: pointer;
+      }
+      .slider::-moz-range-thumb {
+      width: 80px;
+      height: 80px;
+      background: #0066ff;
+      cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div style="font-size: 34px;font-weight: bold;text-align: center;color: blue ">
+      <p>MedidoPump</p>
+    </div>
+    <div style="font-size: 22px;font-weight: bold">
+      Total Fuel Flow <span id="string1">0</span> oz
+      <br>
+      Fuel Flow Rate <span id="string2">0</span> oz/min
+      <br>
+      Running Time <span id="string3">0</span> mins
+      <br>
+    </div>
+
+    <input type="range" min="0" max="100" class="slider" value="0" id="pumpSpeed">
+    <p></p>
+    <div style="font-size: 20px;font-weight: bold">
+      Pump Speed (%): <span id="pumpDisp">0</span>
+    </div>
+    <br>
+    <button class="button button2" value="Pump Forward (Fill)" onclick="buttonCB(1)" >Fill</button>
+    <button class="button button5" value="Pump Off" onclick="buttonCB(2)"  >Off</button>
+    <button class="button button3" value="Pump Reverse (Empty)" onclick="buttonCB(3)">Empty</button>
+    <p></p>
+    <div style="font-size: 20px;font-weight: bold">    
+      Heap: <span id="string0">0</span>
+    </div>
+    <script src="zepto.min.js"></script>
+    <script>
+      //
+      var jqPageLoaded = false
+      $(document).ready(function(){
+	  jqPageLoaded = true;
+	  doPoll();
+      });
+     //
+     var slider = document.getElementById("pumpSpeed");
+     var sliderOutput = document.getElementById("pumpDisp");
+     slider.oninput = function() {
+	 sliderOutput.innerHTML = this.value;
+     }
+     //
+     var pressB=0;
+     function buttonCB(ib) {
+	 pressB = ib;
+	 if (ib == 2) {
+	     slider.value = 0;
+	     sliderOutput.innerHTML = 0;
+	 };
+     };
+     //
+     function pollCB() {
+	 if (!jqPageLoaded) {
+	     alert("pollCB but page not loaded")
+	 }
+	 var elems = oReq.responseText.split(",");
+	 var mins = Math.floor(elems[3]/60);
+	 var secs = Math.floor(10*(elems[3] - mins*60))/10.;
+	 var timeStr;
+	 timeStr = mins.toFixed().padStart(2,"0")+":"+secs.toFixed(1).padStart(4,"0");
+	 var heapStr = Math.floor(elems[0]);
+	 heapStr = heapStr.toFixed();
+	 var flowCstr= Math.floor(elems[1]*10)/10.;
+	 flowCstr = flowCstr.toFixed(1);
+	 var flowRstr = Math.floor(elems[2]*10)/10.;
+	 flowRstr = flowRstr.toFixed(1);
+	 document.getElementById("string0").innerHTML = heapStr;
+	 document.getElementById("string1").innerHTML = flowCstr;
+	 document.getElementById("string2").innerHTML = flowRstr;	
+	 document.getElementById("string3").innerHTML = timeStr;
+	 window.setTimeout(doPoll, 250);
+     };
+     //
+     function doPoll() {
+	 //console.log("in doPoll");
+	 //const oReq = new XMLHttpRequest();
+	 var pumpURL = "http://10.0.0.13?";
+	 var getURL = pumpURL;
+	 getURL = getURL + "pumpSpeed=" + slider.value +"&";
+	 getURL = getURL + "pressB=" + pressB;
+	 pressB = 0;
+	 oReq.open("GET", getURL);
+	 //fire the missiles
+	 oReq.send();
+     }
+     //
+     //set up listener for when server responds
+     //
+     const oReq = new XMLHttpRequest();
+     oReq.addEventListener("load", pollCB)
+     //
+    </script>
+  </body>
+</html>
