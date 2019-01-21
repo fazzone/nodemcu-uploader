@@ -2,7 +2,8 @@
 
 espWebServer.lua
 
-a very small footprint HTTP server for use in the nodemcu environment
+a very small (130 LOC!) footprint HTTP server for use in the nodemcu environment
+
 set up as a lua module so you can do:
 
 eWS = require "espWebServer"
@@ -117,15 +118,6 @@ function receiver(client,request)
 	 sendOneString(sendStr, client)
 	 return
       end
-   end
-   local iSock = 0
-   for _,_ in pairs(sockDrawer) do
-      iSock = iSock + 1
-   end
-   if iSock > 0 then
-     print("query string with sockets open")
-     print("method, path, vars:", method, path, vars)
-     return -- don't process it ... sockets open
    end
    if path=="/" and vars then
       local suffix
