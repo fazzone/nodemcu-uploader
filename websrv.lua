@@ -1,9 +1,6 @@
 --[[
 
-
 medido pump
-
-
 
 --]]
 
@@ -100,61 +97,89 @@ tmr.start(pumpTimer)
 
 ----------------------------------------------------------------------------------------------------
 
-local sendStr
-local fileStr
-local sendFile = false
-local activeSend = false
-local ff
-local lastSpeed = 0
+fileHeader =
+[[
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: %d
+Connection: keep-alive
+Keep-Alive: timeout=15
+Accept-Ranges: bytes
+Server: ESP8266
 
-local function sendCB(localSocket)
-   if sendStr then -- string was sent, this is the callback
-      sendStr = nil
-      if not sendFile then
-	 localSocket:close()
-	 localSocket:on("sent", nil)
-	 activeSend = false
-	 --print("string sent:", sendStr)
+]]
+
+stringHeader=
+[[
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: %d
+
+]]
+
+local sockDrawer={}
+local loadStart
+
+function sndStrCB(sock)
+   sock:on("sent", nil)
+   sock:close()
+end
+
+lc = 0
+
+function sndFileCB(sock)
+   local fp = sockDrawer[sock].filePointer
+   local fn = sockDrawer[sock].fileName
+   local ll = fp:readline()
+   if ll then
+      sock:send(ll)
+      lc = lc + 1
+      if lc % 100 == 0 then
+	 print("lc", lc)
+	 print("heap:", node.heap())
       end
-   end
-   if sendFile then
-      local ll = ff:readline()
-      if ll then
-	 localSocket:send(ll)
-	 --print(ll)
-      else
-	 --print("ll null -- EOF")
-	 localSocket:close()
-	 localSocket:on("sent", nil)
-	 sendFile=false
-	 activeSend=false
-	 --print("html file sent")
-      end	 
+   else
+      print("closing file and socket:", fn, sock)
+      print("file loaded, time (ms):", fn, (tmr.now()-loadStart)/1000.)
+      fp:close()
+      sock:close()
+      sockDrawer[sock] = nil
    end
 end
 
-local function send(localSocket)
-   if activeSend then
-      print("?Already sending?")
-   end
-   localSocket:on("sent", sendCB)
-   activeSend = true
-   if sendStr then
-      localSocket:send(sendStr)
-   elseif sendFile then
-      --print("in sendFile")
-      ff:seek("set", 0)
-      --print("sending:", fileStr)
-      localSocket:send(fileStr)
-   end
+function sendFile(fn, prefix, sock)
+   local fs = file.stat(fn)
+   if not fs then return nil end
+   print("opening file, sock", fn, sock)
+   local fp = file.open(fn, "r")
+   if not fp then return nil end
+   local pp = string.format(prefix, fs.size)
+   sockDrawer[sock] = {fileName=fn, filePointer=fp, filePrefix=pp}
+   print("added to sD, sock #sD:", sock, #sockDrawer)
+   if not loadStart then loadStart = tmr.now() end
+   sock:on("sent", sndFileCB)
+   sock:send(sockDrawer[sock].filePrefix)
+   return true
 end
+
+function sendOneString(str, sock)
+   sock:on("sent", sndStrCB)
+   sock:send(str)
+end
+
+local lastSpeed = 0
 
 function receiver(client,request)
       
-   --parse the response using lua patterns. I didn't think of this I stole it...
-   --print("************************")
-   --print("receiver: request:", request)
+   print("************************")   
+   print("client:", client)
+   print("************************")
+   --print("receiver: request, time:", tmr.now()/1000000)
+   print(request)
+   print("*****************")
    
+   --parse the response using lua patterns. I didn't think of this I stole it...
+
    local _, _, method, path, vars = string.find(request, "([A-Z]+) (.+)?(.+) HTTP");
    --print("method, path,vars:", method, path, vars)
 
@@ -165,21 +190,40 @@ function receiver(client,request)
 
    local parsedvar = {}
 
-   if (vars ~= nil)then
+   if vars then
       for k, v in string.gmatch(vars, "(%w+)=(%w+)&*") do
 	 parsedvar[k] = v
-	 --print("k, v:", k, v)
       end
    end
+   
+   if (string.find(path, "/") == 1)  and not vars then
+      local filename=string.match(path, "/(.*)")
+      print("filename:", string.format("**%s**", filename))
+      if #filename == 0 or filename == '' then
+	 filename = "websrv.html"
+      end
+      if file.exists(filename) then
+	 print("calling sendFile with", filename)
+	 sendFile(filename, fileHeader, client)
+	 return
+      else
+	 sendStr="HTTP/1.1 204 No Content\r\n"
+	 print("No file: "..sendStr)
+	 sendOneString(sendStr, client)
+	 return
+      end
+      
+   end
 
-   if path == "/" and not vars then
-      print("sending html")
-      sendFile = true
-      send(client)
-   elseif path == "/favicon.ico" then
-      sendStr="HTTP/1.1 204 No Content"
-      send(client)
-   elseif path=="/" and vars then
+   -- should never get here with a file loading, thus...
+   
+   if #sockDrawer > 0 then
+      print("Please meet dfm at the suspension bridge")
+      print("method, path, vars:", method, path, vars)
+      return
+   end
+      
+   if path=="/" and vars then
    
       for k,v in pairs(parsedvar) do
 	 --print("parsedvar loop: k,v=", k,v)
@@ -210,34 +254,16 @@ function receiver(client,request)
       s1=flowCount
       s2=flowRate
       s3=runningTime
-
       
-      suffix=
-	 string.format("%f,%f,%f,%f", s0,s1,s2,s3)
-      prefix=
-	 string.format("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n", #suffix)
-      sendStr=prefix..suffix
-      send(client)
+      suffix = string.format("%f,%f,%f,%f", s0,s1,s2,s3)
+      prefix = string.format(stringHeader, #suffix)
+      sendStr = prefix..suffix
+      print("sendStr:", sendStr)
+      sendOneString(sendStr, client)
    end
-   
-   
 end
 
 srv=net.createServer(net.TCP)
-   
-ff = file.open("websrv.html", "r")
-
-local contentLength=0
-while true do
-   local line = ff:readline()
-   if not line then break end
-   contentLength = contentLength + #line
-end
-
-
-fileStr=string.format(
-	 "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %d\r\n\r\n\r\n",
-	 contentLength)
 
 print("Starting receiver on port 80")
 
