@@ -1,3 +1,173 @@
+
+fileHeader =
+[[
+HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: %d
+Connection: keep-alive
+Keep-Alive: timeout=15
+Accept-Ranges: bytes
+Server: ESP8266
+
+]]
+
+stringHeader=
+[[
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: %d
+
+]]
+
+
+local cbFunction
+      
+function setAjaxCB(functionName)
+   cbFunction = functionName
+   return
+end
+
+local sockDrawer={}
+
+function sndStrCB(sock)
+   sock:on("sent", nil)
+   sock:close()
+end
+
+function sndFileCB(sock)
+   local fp = sockDrawer[sock].filePointer
+   local fn = sockDrawer[sock].fileName
+   local ls = sockDrawer[sock].loadStart   
+   --local ll = fp:readline()
+   local ll = fp:read(512)
+   if ll then sock:send(ll) else
+      print("File loaded, time (ms):", fn, (tmr.now()-ls)/1000.)
+      fp:close()
+      sock:close()
+      sockDrawer[sock] = nil
+   end
+end
+
+function sendFile(fn, prefix, sock)
+   local fs = file.stat(fn)
+   if not fs then return nil end
+   local fp = file.open(fn, "r")
+   if not fp then return nil end
+   local pp = string.format(prefix, fs.size)
+   sockDrawer[sock] = {fileName=fn, filePointer=fp, filePrefix=pp, loadStart=tmr.now()}
+   sock:on("sent", sndFileCB)
+   sock:send(sockDrawer[sock].filePrefix)
+   return true
+end
+
+function sendOneString(str, sock)
+   sock:on("sent", sndStrCB)
+   sock:send(str)
+end
+
+local lastSpeed = 0
+
+function receiver(client,request)
+      
+   --parse the response using lua patterns. I didn't think of this I stole it...
+
+   local _, _, method, path, vars = string.find(request, "([A-Z]+) (.+)?(.+) HTTP");
+   --print("method, path,vars:", method, path, vars)
+
+   if not method then
+      _, _, method, path = string.find(request, "([A-Z]+) (.+) HTTP");
+      --print("method nil: method, path:", method, path)
+   end
+
+   local parsedvar = {}
+
+   if vars then
+      for k, v in string.gmatch(vars, "(%w+)=(%w+)&*") do
+	 parsedvar[k] = v
+      end
+   end
+   
+   if (string.find(path, "/") == 1)  and not vars then
+      local filename=string.match(path, "/(.*)")
+      if #filename == 0 or filename == '' then
+	 filename = "websrv.html"
+      end
+      if file.exists(filename) then
+	 sendFile(filename, fileHeader, client)
+	 return
+      else
+	 sendStr="HTTP/1.1 204 No Content\r\n"
+	 print("No file: "..filename)
+	 sendOneString(sendStr, client)
+	 return
+      end
+      
+   end
+
+   -- should never get here with a file loading, thus...
+
+   local iSock = 0
+   for k,v in pairs(sockDrawer) do
+      iSock = iSock + 1
+   end
+   
+   if iSock > 0 then
+     print("Please meet dfm at the suspension bridge")
+     print("method, path, vars:", method, path, vars)
+     return -- don't process it ... sockets open
+   end
+
+   
+      
+   if path=="/" and vars then
+
+      if cbFunction then
+	 local ss = cbFunction(parsedvar)
+	 --print("ss=", ss)
+      end
+      
+      for k,v in pairs(parsedvar) do
+	 if k =="pumpSpeed" then
+	    ps = tonumber(v)
+	    if ps ~= lastSpeed then
+	       setPumpSpeed(ps)
+	       lastSpeed = ps
+	    end
+	 elseif k == "pressB" then
+	    pb = tonumber(v)
+	    if pb == 1 then
+	       setPumpFwd()
+	    elseif pb == 2 then
+	       setPumpSpeed(0)
+	       lastSpeed = ps
+	    elseif pb == 3 then
+	       setPumpRev()
+	    end
+	 end
+      end
+
+      -- package up responses here
+      
+      s0=node.heap()
+      s1=flowCount
+      s2=flowRate
+      s3=runningTime
+      
+      suffix = string.format("%f,%f,%f,%f", s0,s1,s2,s3)
+      prefix = string.format(stringHeader, #suffix)
+      sendStr = prefix..suffix
+      sendOneString(sendStr, client)
+   end
+end
+
+srv=net.createServer(net.TCP)
+
+print("Starting receiver on port 80")
+
+srv:listen(80,function(conn) conn:on("receive", receiver) end)
+
+------------------------------------------------------------
+
 --[[
 
 medido pump
@@ -82,6 +252,21 @@ function timerCB()
    tmr.start(pumpTimer)
 end
 
+saveTable={}
+
+function xrhCB(vartbl)
+   for k,v in pairs(vartbl) do
+      if saveTable.k ~= v then
+	 if saveTable.k then print("old:", saveTable.k) else print("old: nil") end
+	 print("change: k,v=", k, v)
+	 saveTable.k = v
+      end
+   end
+   return "testing 123"
+end
+
+setAjaxCB(xrhCB)
+
 pwm.setup (pwmPumpPin,   1000, 0)         
 
 gpio.mode (flowDirPin,   gpio.OUTPUT)
@@ -96,181 +281,6 @@ tmr.start(pumpTimer)
 
 
 ----------------------------------------------------------------------------------------------------
-
-fileHeader =
-[[
-HTTP/1.1 200 OK
-Content-Type: text/html
-Content-Length: %d
-Connection: keep-alive
-Keep-Alive: timeout=15
-Accept-Ranges: bytes
-Server: ESP8266
-
-]]
-
-stringHeader=
-[[
-HTTP/1.1 200 OK
-Content-Type: text/plain
-Content-Length: %d
-
-]]
-
-local sockDrawer={}
-local loadStart
-
-function sndStrCB(sock)
-   sock:on("sent", nil)
-   sock:close()
-end
-
-bc = 0
-
-function sndFileCB(sock)
-   local fp = sockDrawer[sock].filePointer
-   local fn = sockDrawer[sock].fileName
-   --local ll = fp:readline()
-   local ll = fp:read(512)
-   if ll then
-      sock:send(ll)
-      bc = bc + 1
-      if bc % 100 == 0 then
-	 print("bc", bc)
-	 print("heap:", node.heap())
-      end
-   else
-      print("closing file and socket:", fn, sock)
-      if loadStart then
-	 print("file loaded, time (ms):", fn, (tmr.now()-loadStart)/1000.)
-      end
-      fp:close()
-      sock:close()
-      sockDrawer[sock] = nil
-   end
-end
-
-function sendFile(fn, prefix, sock)
-   local fs = file.stat(fn)
-   if not fs then return nil end
-   print("opening file, sock", fn, sock)
-   local fp = file.open(fn, "r")
-   if not fp then return nil end
-   local pp = string.format(prefix, fs.size)
-   sockDrawer[sock] = {fileName=fn, filePointer=fp, filePrefix=pp}
-   print("added to sD, sock #sD:", sock, #sockDrawer)
-   if fn == "websrv.html" then loadStart = tmr.now() end
-   sock:on("sent", sndFileCB)
-   sock:send(sockDrawer[sock].filePrefix)
-   return true
-end
-
-function sendOneString(str, sock)
-   sock:on("sent", sndStrCB)
-   sock:send(str)
-end
-
-local lastSpeed = 0
-
-function receiver(client,request)
-      
-   print("************************")   
-   print("client:", client)
-   print("************************")
-   --print("receiver: request, time:", tmr.now()/1000000)
-   print(request)
-   print("*****************")
-   
-   --parse the response using lua patterns. I didn't think of this I stole it...
-
-   local _, _, method, path, vars = string.find(request, "([A-Z]+) (.+)?(.+) HTTP");
-   --print("method, path,vars:", method, path, vars)
-
-   if not method then
-      _, _, method, path = string.find(request, "([A-Z]+) (.+) HTTP");
-      --print("method nil: method, path:", method, path)
-   end
-
-   local parsedvar = {}
-
-   if vars then
-      for k, v in string.gmatch(vars, "(%w+)=(%w+)&*") do
-	 parsedvar[k] = v
-      end
-   end
-   
-   if (string.find(path, "/") == 1)  and not vars then
-      local filename=string.match(path, "/(.*)")
-      print("filename:", string.format("**%s**", filename))
-      if #filename == 0 or filename == '' then
-	 filename = "websrv.html"
-      end
-      if file.exists(filename) then
-	 print("calling sendFile with", filename)
-	 sendFile(filename, fileHeader, client)
-	 return
-      else
-	 sendStr="HTTP/1.1 204 No Content\r\n"
-	 print("No file: "..sendStr)
-	 sendOneString(sendStr, client)
-	 return
-      end
-      
-   end
-
-   -- should never get here with a file loading, thus...
-   
-   if #sockDrawer > 0 then
-      print("Please meet dfm at the suspension bridge")
-      print("method, path, vars:", method, path, vars)
-      return
-   end
-      
-   if path=="/" and vars then
-   
-      for k,v in pairs(parsedvar) do
-	 --print("parsedvar loop: k,v=", k,v)
-	 if k =="pumpSpeed" then
-	    --print("pumpSpeed=", v)
-	    ps = tonumber(v)
-	    if ps ~= lastSpeed then
-	       setPumpSpeed(ps)
-	       lastSpeed = ps
-	    end
-	 elseif k == "pressB" then
-	    --print("Button:", parsedvar[k])
-	    pb = tonumber(v)
-	    if pb == 1 then
-	       setPumpFwd()
-	    elseif pb == 2 then
-	       setPumpSpeed(0)
-	       lastSpeed = ps
-	    elseif pb == 3 then
-	       setPumpRev()
-	    end
-	 end
-      end
-
-      -- package up responses here
-      
-      s0=node.heap()
-      s1=flowCount
-      s2=flowRate
-      s3=runningTime
-      
-      suffix = string.format("%f,%f,%f,%f", s0,s1,s2,s3)
-      prefix = string.format(stringHeader, #suffix)
-      sendStr = prefix..suffix
-      print("sendStr:", sendStr)
-      sendOneString(sendStr, client)
-   end
-end
-
-srv=net.createServer(net.TCP)
-
-print("Starting receiver on port 80")
-
-srv:listen(80,function(conn) conn:on("receive", receiver) end)
 
 
 -------------------------------------------------------------------------------------------------
