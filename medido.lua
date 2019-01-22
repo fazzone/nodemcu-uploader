@@ -106,14 +106,23 @@ function xhrCB(varTable)
 	    else
 	       print("idx error:", idx)
 	    end
+	 elseif k == "pressC" and tonumber(v) == 1 then
+	    print("Clear")
+	    pulseCount = 0
+	    lastPulseCount=0
+	    --flowRate=0
+	    pumpStartTime=0
+	    pumpStopTime=0
 	 end
+	 
       end
    end
    return string.format("%f,%f,%f,%f", node.heap(),flowCount,flowRate,runningTime)
 end
 
+local bs=512
 server.setAjaxCB(xhrCB)
-server.start(80, 512)
+server.start(80, bs)
 print("Starting web server on port 80, buffer size:", bs)
 
 
