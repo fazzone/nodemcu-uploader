@@ -120,10 +120,12 @@ function xhrCB(varTable)
    return string.format("%f,%f,%f,%f", node.heap(),flowCount,flowRate,runningTime)
 end
 
+local ip=wifi.sta.getip()
 local bs=512
 server.setAjaxCB(xhrCB)
 server.start(80, bs)
 print("Starting web server on port 80, buffer size:", bs)
+print("IP Address: ", ip)
 
 
 pwm.setup (pwmPumpPin,   1000, 0)         

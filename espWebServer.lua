@@ -13,6 +13,8 @@ two external function calls:
 espWebServer.setAjaxCB() -- call this one with a callback function for each query string
 espWebServer.start()     -- call this one to set port and buffer size and start the server
 
+restrictions: only implements one route: "/" for index.html and one for ajax with query strings
+
 --]]
 
 local espWebServer = {}
@@ -42,6 +44,7 @@ Content-Length: %d
 local cbFunction
 local bufsize
 local sockDrawer={}
+local ipAddress
 
 function espWebServer.setAjaxCB(functionName)
    -- callback function. called with argument = parsed variable (lua) table from GET's query string
@@ -53,6 +56,7 @@ end
 function espWebServer.start(port, bs)
    local srv=net.createServer(net.TCP)
    bufsize = bs
+   ipAddress = ip
    srv:listen(port,function(conn) conn:on("receive", receiver) end)
    return srv
 end
@@ -98,6 +102,12 @@ function receiver(client,request)
    if not method then
       _, _, method, path = string.find(request, "([A-Z]+) (.+) HTTP");
    end
+   --
+   --print("client", client)
+   --print("path", path)
+   --print("vars", vars)
+   --print("request",request)
+   --
    local parsedVariables = {}
    if vars then
       for k, v in string.gmatch(vars, "(%w+)=(%w+)&*") do
