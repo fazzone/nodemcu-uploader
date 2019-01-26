@@ -6,29 +6,31 @@ medido pump
 
 server = require "espWebServer"
 
-flowDirPin   = 3 --GPIO0
-flowMeterPin = 7 --GPIO13
-pwmPumpPin   = 8 --GPIOxx
+local flowDirPin   = 3 --GPIO0
+local flowMeterPin = 7 --GPIO13
+local pwmPumpPin   = 8 --GPIOxx
 
-pulseCount=0
-flowRate=0
-lastPulseCount=0
-lastFlowTime=0
-pulsePerOz=77.6
+local pulseCount=0
+local flowRate=0
+local lastPulseCount=0
+local lastFlowTime=0
+local pulsePerOz=77.6
 
-minPWM = 50
-maxPWM = 1023
-lastPWM = 0
-pumpPWM = 0
+local minPWM = 50
+local maxPWM = 1023
+local lastPWM = 0
+local pumpPWM = 0
 
-pumpFwd=true
+local pumpFwd=true
 
-pumpStartTime = 0
-pumpStopTime = 0
-runningTime = 0
+local pumpStartTime = 0
+local pumpStopTime = 0
+local runningTime = 0
 
-pulseCount = 0
-flowCount  = 0
+local pulseCount = 0
+local flowCount  = 0
+
+local gotCalFact = false
 
 function gpioCB(lev, pul, cnt)
    if pumpFwd then
@@ -90,10 +92,16 @@ function xhrCB(varTable)
    for k,v in pairs(varTable) do
       if saveTable[k] ~= v then   -- if there was a change
 	 saveTable[k] = v
-	 if k == "pumpSpeed" then -- what change was it?
-	    setPumpSpeed(tonumber(v))
+	 local kk
+	 if (not gotCalFact) and (k ~= "cF" and tonumber(v) ~= 0) then
+	    print("Attempt to command before calFact - rejected:", k, v)
+	    kk = nil
+	 else
+	    kk = k
 	 end
-	 if k == "pressB" then
+	 if kk == "pS" then -- what change was it?
+	    setPumpSpeed(tonumber(v))
+	 elseif kk == "pB" then
 	    idx = tonumber(v)
 	    if idx == 0     then -- "Idle" (no command)
 	       --
@@ -106,18 +114,23 @@ function xhrCB(varTable)
 	    else
 	       print("idx error:", idx)
 	    end
-	 elseif k == "pressC" and tonumber(v) == 1 then
+	 elseif kk == "pC" and tonumber(v) == 1 then
 	    print("Clear")
 	    pulseCount = 0
 	    lastPulseCount=0
 	    --flowRate=0
 	    pumpStartTime=0
 	    pumpStopTime=0
+	 elseif kk == "cF" then
+	    print("calFact passed in:", tonumber(v))
+	    pulsePerOz = tonumber(v)/100
+	    gotCalFact = true
 	 end
-	 
       end
    end
-   return string.format("%f,%f,%f,%f", node.heap(),flowCount,flowRate,runningTime)
+   local ippo = math.floor(pulsePerOz * 100 + 0.5)
+   return string.format("%f,%f,%f,%f,%f",
+			node.heap(),flowCount,flowRate,runningTime, ippo)
 end
 
 local ip=wifi.sta.getip()
@@ -127,7 +140,8 @@ server.start(80, bs)
 print("Starting web server on port 80, buffer size:", bs)
 print("IP Address: ", ip)
 
-
+setPumpSpeed(0)
+setPumpFwd()
 pwm.setup (pwmPumpPin,   1000, 0)         
 
 gpio.mode (flowDirPin,   gpio.OUTPUT)
