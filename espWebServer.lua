@@ -30,7 +30,6 @@ fileHeader = {
    type="Content-type: ",
    length="Content-length: ",
    alive="Keep-Alive: Timeout=",
-   accept="Accept-Ranges: ",
    server="Server: ",
 }
 
@@ -77,10 +76,10 @@ end
 
 function sndFileCB(sock)
    local fp = sockDrawer[sock].filePointer
-   local fn = sockDrawer[sock].fileName
-   local ls = sockDrawer[sock].loadStart   
    local ll = fp:read(bufsize)
    if ll then sock:send(ll) else
+      local fn = sockDrawer[sock].fileName
+      local ls = sockDrawer[sock].loadStart   
       print("File loaded, time (ms):", fn, (tmr.now()-ls)/1000.)
       fp:close()
       sock:close()
@@ -94,9 +93,8 @@ function buildHttpHeader(size, mime)
    local cl = string.format(fileHeader.length.."%d", size)
    local ct = fileHeader.type..mime
    local ck = fileHeader.alive.."15"
-   local ca = fileHeader.accept.."bytes"
    local cs = fileHeader.server.."ESP8266"
-   return ch..crlf..ct..crlf..cl..crlf..ck..crlf..ca..crlf..cs..crlf..crlf
+   return ch..crlf..ct..crlf..cl..crlf..ck..crlf..cs..crlf..crlf
 end
 
 function sendFile(fn, mimetype, sock)

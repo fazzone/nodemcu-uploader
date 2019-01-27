@@ -6,15 +6,13 @@
 	<meta charset="UTF-8">
 	<script src="zepto.min.js"></script>
 	<link href="medido.css"  rel="stylesheet">
-	<audio class="aud" id="Aadams" controls preload="auto">
-	    <source src="mailsin.mp3" type="audio/mpeg">
-	</audio>
 	<script src="gauge.min.js"></script>
 	<script>
 	 var flowRstr = 0;
 	 var calFact = 0;
 	 var gotFact = false;
 	 var abcFact = 0;
+	 //var aadamsAudio = document.getElementById('Aadams');
 	 $(document).ready(function() {
 	     var ipAddr = location.host;
 	     var slider = document.getElementById("pumpSpeed");
@@ -25,15 +23,20 @@
 	     var pressB=0;
 	     var lastB=2;
 	     $("#abcID").change(function(){
-		 console.log("play")
-		 if ($(this).paused == true) {
-		     console.log("true")
-		     $(this).get(0).play()
-		 } else {
-		     console.log("false")
-		     $(this).get(0).pause()		     
-		 };
-		 // $("#Aadams").get(0).play()
+		 console.log("changed!");
+		 abcFact = $("#abcID").val();
+		 pressGauge.set(abcFact)
+		 //console.log("var: ", $(this).val());
+		 //console.log("aadamsAudio.paused: " + aadamsAudio.paused);
+		 //console.log("aadamsAudio.currentTime: " + aadamsAudio.currentTime);
+		 //console.log("aadamsAudio.ended: " + aadamsAudio.ended);
+		 //if ($(this).val() == 0) {
+		 //    alert("zero");
+		 //    $("#Aadams").get(0).play();
+		 //} else {
+		 //    alert("not zero!")
+		 //    $("#Aadams").get(0).pause();
+		 //};
 	     });
 	     $("#Fill").click(function(){
 		 pressB = 1;
@@ -64,15 +67,6 @@
 	     $("#calID").change(function(){
 		 calFact = $("#calID").val();
 	     });
-	     //$("#abcID").change(function(){
-	     //abcFact = $("#abcID").val();
-	     //if (abcFact > 40 || abcFact < -40) {
-	     //    alert("Range is ...");
-	     //};
-	     //	 gauge.set(abcFact)
-	     // var abcMod = Math.abs(abcFact) % 100;
-	     //$('#fuelMeter').val(abcMod)		 
-	     //});
 	     //
 	     function pollCB() {
 		 var elems = oReq.responseText.split(",");
@@ -90,7 +84,8 @@
 		 flowRstr = Math.floor(Number(Number(elems[2])) * 10) / 10.;
 		 flowRstr = flowRstr.toFixed(1);
 		 $("#fuelFlowRate").html(flowRstr)
-		 gauge.set(flowRstr)
+		 pressGauge.set(abcFact)
+		 flowGauge.set(flowRstr)
 		 //
 		 var mins = Math.floor(Number(elems[3]) / 60);
 		 var secs = Math.floor(10 * (Number(elems[3]) - mins*60))/10.;
@@ -144,12 +139,17 @@
 	<div style="font-size: 20px;font-weight: bold;text-align: center;width: 95% ;color: blue ">
 	    MedidoPump
 	</div>
-	<canvas id="gauge"></canvas>
+	<div id="gaugediv">
+	    <canvas id="pressGauge"></canvas>
+	    <canvas id="flowGauge"></canvas>
+	</div>
 	<br>
-	<div style="font-size: 18px;font-weight: bold; line-height: 30px; text-align: center">
+	<div style="font-size: 18px;font-weight: bold; line-height: 24px; text-align: center">
 	    Fuel Flow Rate <span id="fuelFlowRate">0</span> oz/min
+	    <br>
+	    Fuel Supply Pressure <span id ="fuelPressure">0</span> psi
 	    <hr>
-	    <meter min="0" max="100" value="50" id="fuelMeter">meter</meter>
+	    <meter min="0" max="20" value="0" id="fuelMeter">meter</meter>
 	    Fuel Flow
 	    <span id="totalFuelFlow">0</span> oz <button class="buttonClear"> Clear </button>
 	    <hr>
@@ -177,48 +177,86 @@
 	<input type="number" size="4"
 	       name="abcFactor" id="abcID" value=""
 	       title="Enter abc" />
-	<br>
 	<script>
-	 var target = document.getElementById('gauge'); // your canvas element
-	 var opts = {
+	 var flowTarget = document.getElementById('flowGauge'); // your canvas element
+	 var pressTarget = document.getElementById('pressGauge'); // your canvas element
+	 var flowOpts = {
 	     angle: 0.05, // The span of the gauge arc
 	     lineWidth: 0.35, // The line thickness
 	     radiusScale: .9, // Relative radius
 	     pointer: {
-		 length: 0.6, // // Relative to gauge radius
+		 length: 0.6, // Relative to gauge radius
 		 strokeWidth: 0.035, // The thickness
-		 color: '#000000' // Fill color
+		 color: '#000000', // Fill color
 	     },
 	     renderTicks: {
-		 divisions: 8,
+		 divisions: 6,
 		 subDivisions: 4,
 		 divLength: 0.3,
 		 subLength: 0.15
 	     },
 	     staticLabels: {
-		 labels: [-40,-20,0,20,40],
+		 labels: [-60,-40,-20,0,20,40, 60],
 		 color: 'black',
 		 font: "90% sans serif"
 	     },
 	     limitMax: true,     // If false, max value increases automatically if value > maxValue
 	     limitMin: true,     // If true, the min value of the gauge will be fixed
 	     generateGradient: true,
-	     //highDpiSupport: true,     // High resolution support
+	     highDpiSupport: true,     // High resolution support
 	     colorStart: '#0039e6',   // Colors
 	     colorStop: '#0039e6',    // just experiment with them
 	     strokeColor: '#E0E0E0',  // to see which ones work best for you
 	     fontSize: 30,
 	     staticZones: [
-		 {strokeStyle: "#FFCC00", min: -40, max: -2}, // 
+		 {strokeStyle: "#FFCC00", min: -60, max: -2}, // 
 		 {strokeStyle: "#e0e0e0", min: -2,  max: 2},  // Grey near zero
-		 {strokeStyle: "#0400FF", min: 2,   max: 40}, // 
+		 {strokeStyle: "#0400FF", min: 2,   max: 60}, // 
 	     ],
 	 };
-	 var gauge = new Gauge(target).setOptions(opts); // create sexy gauge!
-	 gauge.maxValue = 40; // set max gauge value
-	 gauge.setMinValue(-40);  // Prefer setter over gauge.minValue = 0
-	 gauge.animationSpeed = 10; // set animation speed (32 is default value)
-	 gauge.set(flowRstr); // set actual value
+	 var pressOpts = {
+	     angle: 0.05, // The span of the gauge arc
+	     lineWidth: 0.15, // The line thickness
+	     radiusScale: .5, // Relative radius
+	     pointer: {
+		 length: 0.50, // // Relative to gauge radius
+		 strokeWidth: 0.035, // The thickness
+		 color: '#000000' // Fill color
+	     },
+	     renderTicks: {
+		 divisions: 5,
+		 subDivisions: 2,
+		 divLength: 0.3,
+		 subLength: 0.15
+	     },
+	     limitMax: true,     // If false, max value increases automatically if value > maxValue
+	     limitMin: true,     // If true, the min value of the gauge will be fixed
+	     generateGradient: true,
+	     highDpiSupport: true,     // High resolution support
+	     colorStart: '#0039e6',   // Colors
+	     colorStop: '#0039e6',    // just experiment with them
+	     strokeColor: '#E0E0E0',  // to see which ones work best for you
+	     //fontSize: 30,
+	     percentColors: [[0.0, "#00FF00" ], [1.0, "#FF0000"]],
+	     strokeColor: '#E0E0E0',
+	     //staticZones: [
+		 //{strokeStyle: "#00FF00", min: 0, max: 2}, // 
+		 //{strokeStyle: "#FF0000", min: 2, max: 5}, // 
+	     //],
+	 };
+	 
+	 var flowGauge = new Gauge(flowTarget).setOptions(flowOpts); // create sexy gauge!
+	 var pressGauge = new Gauge(pressTarget).setOptions(pressOpts)
+	 flowGauge.maxValue = 60; // set max gauge value
+	 flowGauge.setMinValue(-60);  // Prefer setter over gauge.minValue = 0
+	 flowGauge.animationSpeed = 10; // set animation speed (32 is default value)
+	 pressGauge.maxValue = 5; // set max gauge value
+	 pressGauge.setMinValue(0);  // Prefer setter over gauge.minValue = 0
+	 pressGauge.animationSpeed = 10; // set animation speed (32 is default value)
+
+	 pressGauge.set(abcFact); // set actual value	 
+	 flowGauge.set(flowRstr); // set actual value
+	 
 	</script>
 	
     </body>
