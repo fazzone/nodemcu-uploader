@@ -15,7 +15,10 @@ local flowRate=0
 local lastPulseCount=0
 local lastFlowTime=0
 local pulsePerOz=77.6
-
+local pressZero
+local pressScale=3.75
+local pressPSI
+local adcDiv=5.7 -- resistive divider in front of adc   
 local minPWM = 50
 local maxPWM = 1023
 local lastPWM = 0
@@ -83,6 +86,7 @@ function timerCB()
    else
       runningTime = math.abs(math.abs(pumpStopTime) - math.abs(pumpStartTime)) / 1000000.
    end
+   pressPSI = ((adcDiv*adc.read(0)/1023)-pressZero) * (pressScale)
    tmr.start(pumpTimer)
 end
 
@@ -129,8 +133,8 @@ function xhrCB(varTable)
       end
    end
    local ippo = math.floor(pulsePerOz * 100 + 0.5)
-   return string.format("%f,%f,%f,%f,%f",
-			node.heap(),flowCount,flowRate,runningTime, ippo)
+   return string.format("%f,%f,%f,%f,%f,%f",
+			node.heap(),flowCount,flowRate,runningTime,ippo,pressPSI)
 end
 
 local ip=wifi.sta.getip()
@@ -142,7 +146,16 @@ print("IP Address: ", ip)
 
 setPumpSpeed(0)
 setPumpFwd()
-pwm.setup (pwmPumpPin,   1000, 0)         
+pwm.setup (pwmPumpPin,   1000, 0)
+
+pressZero = adcDiv * adc.read(0) / 1023
+
+for i=1,50,1 do
+   pressZero = pressZero - (pressZero - adcDiv * adc.read(0) / 1023)/10
+   print(pressZero)
+end
+
+print("pressZero:", pressZero)
 
 gpio.mode (flowDirPin,   gpio.OUTPUT)
 gpio.write(flowDirPin,   gpio.LOW)
