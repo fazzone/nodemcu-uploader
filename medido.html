@@ -12,7 +12,39 @@
 	 var calFact = 0;
 	 var gotFact = false;
 	 var abcFact = 0;
+	 var TpressPSI;
+	 var TflowCstr;
+	 var TfuelModulo;
+	 var TflowRstr;
+	 var Ttime=0;
+	 var TT;
 	 //var aadamsAudio = document.getElementById('Aadams');
+	 function test() {
+	     TpressPSI = 5+5*Math.sin(6.28*Ttime/20)
+	     pressGauge.set(TpressPSI);
+	     TT = TpressPSI.toFixed(1)
+	     $('#fuelPressure').html(TT)
+	     //
+	     TflowCstr = Ttime
+	     TT = TflowCstr.toFixed(2)
+	     $("#totalFuelFlow").html(TT)
+	     TfuelModulo = Math.abs(TflowCstr % 10);
+	     $('#fuelMeter').val(TfuelModulo)		     
+	     //
+	     TflowRstr = 60*Math.cos(6.28*Ttime/20);
+	     TT = TflowRstr.toFixed(1)
+	     $("#fuelFlowRate").html(TT);
+	     flowGauge.set(TflowRstr);
+	     Ttime = Ttime + 100/1000
+	     var Tmins = Math.floor(Ttime / 60);
+	     var Tsecs = Math.floor(10 * (Ttime - Tmins*60))/10.;
+	     var TtimeStr;
+	     TtimeStr = Tmins.toFixed().padStart(2,"0")+":"+Tsecs.toFixed(1).padStart(4,"0");
+	     $("#runningTime").html(TtimeStr)
+	     if (Ttime < 100) {
+		 setTimeout(test, 100)
+	     }
+	 }
 	 $(document).ready(function() {
 	     var ipAddr = location.host;
 	     var slider = document.getElementById("pumpSpeed");
@@ -83,7 +115,6 @@
 		 flowCstr = flowCstr.toFixed(1);
 		 $("#totalFuelFlow").html(flowCstr)
 		 var fuelModulo = Math.abs(flowCstr % 10);
-		 
 		 $('#fuelMeter').val(fuelModulo)
 		 //
 		 // elem[2]: Flow Rate (oz/min)
@@ -148,6 +179,8 @@
 	     //
 	     if (ipAddr !== '') { 
 		 doPoll();
+	     } else {
+		 setTimeout(test, 100)
 	     }
 	 });
 	 //
@@ -269,7 +302,7 @@
 	 flowGauge.maxValue = 60; // set max gauge value
 	 flowGauge.setMinValue(-60);  // Prefer setter over gauge.minValue = 0
 	 flowGauge.animationSpeed = 10; // set animation speed (32 is default value)
-	 pressGauge.maxValue = 5; // set max gauge value
+	 pressGauge.maxValue = 10; // set max gauge value
 	 pressGauge.setMinValue(0);  // Prefer setter over gauge.minValue = 0
 	 pressGauge.animationSpeed = 10; // set animation speed (32 is default value)
 
