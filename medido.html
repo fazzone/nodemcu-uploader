@@ -6,21 +6,23 @@
 	<meta charset="UTF-8">
 	<script src="zepto.min.js"></script>
 	<link href="medido.css"  rel="stylesheet">
+	<script src="smoothie.js"></script>
 	<script src="gauge.min.js"></script>
 	<script>
 	 var flowRstr = 0;
 	 var calFact = 0;
 	 var gotFact = false;
 	 var abcFact = 0;
-	 var TpressPSI;
-	 var TflowCstr;
-	 var TfuelModulo;
-	 var TflowRstr;
 	 var Ttime=0;
-	 var TT;
-	 //var aadamsAudio = document.getElementById('Aadams');
+	 var Utime;
+	 //
 	 function test() {
-	     TpressPSI = 5+5*Math.sin(6.28*Ttime/20)
+	     var TpressPSI;
+	     var TflowCstr;
+	     var TfuelModulo;
+	     var TflowRstr;
+	     var TT;
+	     TpressPSI = 5+5*Math.cos(6.28*Ttime/10)
 	     pressGauge.set(TpressPSI);
 	     TT = TpressPSI.toFixed(1)
 	     $('#fuelPressure').html(TT)
@@ -31,18 +33,24 @@
 	     TfuelModulo = Math.abs(TflowCstr % 10);
 	     $('#fuelMeter').val(TfuelModulo)		     
 	     //
-	     TflowRstr = 60*Math.cos(6.28*Ttime/20);
+	     TflowRstr = 60*Math.sin(6.28*Ttime/10);
 	     TT = TflowRstr.toFixed(1)
 	     $("#fuelFlowRate").html(TT);
 	     flowGauge.set(TflowRstr);
+	     //
 	     Ttime = Ttime + 100/1000
 	     var Tmins = Math.floor(Ttime / 60);
 	     var Tsecs = Math.floor(10 * (Ttime - Tmins*60))/10.;
 	     var TtimeStr;
 	     TtimeStr = Tmins.toFixed().padStart(2,"0")+":"+Tsecs.toFixed(1).padStart(4,"0");
 	     $("#runningTime").html(TtimeStr)
-	     if (Ttime < 100) {
-		 setTimeout(test, 100)
+	     //
+	     Utime = new Date();
+	     //console.log(Utime.getTime(), TpressPSI);
+	     smoothieLine1.append(Utime.getTime(), TpressPSI);
+	     smoothieLine2.append(Utime.getTime(), TfuelModulo);
+	     if (Ttime <= 40) {
+		 setTimeout(test, 250)
 	     }
 	 }
 	 $(document).ready(function() {
@@ -55,7 +63,7 @@
 	     var pressB=0;
 	     var lastB=2;
 	     $("#abcID").change(function(){
-		 console.log("changed!");
+		 //console.log("changed!");
 		 abcFact = $("#abcID").val();
 		 pressGauge.set(abcFact)
 		 //console.log("var: ", $(this).val());
@@ -72,25 +80,33 @@
 	     });
 	     $("#Fill").click(function(){
 		 pressB = 1;
-		 $("#Fill").text("--> Fill <--");
-		 $("#Empty").text("Empty");
+		 //$("#Fill").text("-Fill-");
+		 //$("#Empty").text("Empty");
 		 $('.slider').css({backgroundColor: '#0400FF'});
 		 lastB = 1;
+		 smoothieLine1.data = [];
+		 smoothieLine2.data = [];
+		 smoothie.start();
 	     });
 	     $("#Empty").click(function(){
 		 pressB = 3;
-		 $("#Empty").text("--> Empty <--");
-		 $("#Fill").text("Fill");
+		 //$("#Empty").text("-Empty-");
+		 //$("#Fill").text("Fill");
 		 $('.slider').css({backgroundColor: '#FFCC00'});
 		 lastB = 3;
+		 smoothieLine1.data = [];
+		 smoothieLine2.data = [];
+		 smoothie.start()
 	     });
 	     $("#Off").click(function(){
 		 pressB = 2;
-		 $("#Fill").text("Fill");	 
-		 $("#Empty").text("Empty");
+		 //$("#Fill").text("Fill");	 
+		 //$("#Empty").text("Empty");
+		 //$("#Off").text("-Off-");
 		 lastB = 2;
 		 slider.value = 0;
 		 sliderOutput.innerHTML = 0;
+		 smoothie.stop();
 	     });     
 	     var pressC = 0;
 	     $(".buttonClear").click(function(){
@@ -150,6 +166,10 @@
 		 //
 		 // Reset next poll
 		 //
+		 var Utime=new Date();
+		 //console.log(Utime.getTime(), pressPSI);
+		 smoothieLine1.append(Utime.getTime(), pressPSI);
+		 smoothieLine2.append(Utime.getTime(), fuelModulo);
 		 window.setTimeout(doPoll, 250);
 	     };
 	     //
@@ -195,30 +215,35 @@
 	    <canvas id="pressGauge"></canvas>
 	    <canvas id="flowGauge"></canvas>
 	</div>
+	<div>
+	    <canvas id="timeplot" width="360" height="90"></canvas>
+	</div>
 	<br>
 	<div style="font-size: 18px;font-weight: bold; line-height: 24px; text-align: center">
-	    Fuel Flow Rate <span id="fuelFlowRate">0</span> oz/min
-	    <br>
-	    Fuel Supply Pressure <span id ="fuelPressure">0</span> psi
+	    Flow <span id="fuelFlowRate">0</span> oz/min &nbsp &nbsp
+	    Pressure <span id ="fuelPressure">0</span> psi
 	    <hr>
 	    <meter min="0" max="10" value="0" id="fuelMeter">meter</meter>
 	    Fuel Flow
 	    <span id="totalFuelFlow">0</span> oz <button class="buttonClear"> Clear </button>
 	    <hr>
+	    <br>
 	    <input type="range" min="0" max="100" class="slider" value="0" id="pumpSpeed">
+	    <br>
 	    Pump Speed (%): <span id="pumpDisp">0</span>
 	    <hr>
 	    Running Time <span id="runningTime">0</span>
 	    <hr>
 	</div>
 	
-	<div>
-	    <button class="button buttonFill"  id="Fill" >Fill </button>
-	    <button class="button buttonOff"   id="Off"  >Off  </button>
+	<div class="buttonsCenter">
+	    &nbsp
 	    <button class="button buttonEmpty" id="Empty">Empty</button>
-	    <br>
-	    Heap: <span id="heapSize">0</span>
+	    <button class="button buttonOff"   id="Off"  >Off  </button>
+	    <button class="button buttonFill"  id="Fill" >Fill </button>
 	</div>
+	<br>
+	Heap: <span id="heapSize">0</span>
 	<br>
 	Calibration (pulses/oz):
 	<input type="number"name="calFactor" size="4" min="20" max="90" step="0.01"
@@ -230,8 +255,25 @@
 	       name="abcFactor" id="abcID" value=""
 	       title="Enter abc" />
 	<script>
-	 var flowTarget = document.getElementById('flowGauge'); // your canvas element
-	 var pressTarget = document.getElementById('pressGauge'); // your canvas element
+	 //
+	 var smoothie = new SmoothieChart(
+	     {grid:
+	 {fillStyle:'#d9d9d9', sharpLines:true, millisPerLine:10000*2},
+	      labels:
+	 {fillStyle: '#000000', precision: 0},
+	      timestampFormatter:SmoothieChart.timeFormatter,
+	      millisPerPixel:266, minValue: -.4, maxValue: 10.4})
+	 var smoothieCanvas=document.getElementById("timeplot");
+	 var smoothieLine1 = new TimeSeries();
+	 var smoothieLine2 = new TimeSeries();
+	 smoothie.streamTo(smoothieCanvas,250)
+	 smoothie.addTimeSeries(smoothieLine1,
+				{lineWidth: 2, strokeStyle: '#00FF00', fillStyle:'#ccffcc'});
+	 smoothie.addTimeSeries(smoothieLine2,
+				{lineWidth: 2, strokeStyle: '#0000FF'});
+	 //
+	 var flowTarget = document.getElementById('flowGauge');
+	 var pressTarget = document.getElementById('pressGauge');
 	 var flowOpts = {
 	     angle: 0.05, // The span of the gauge arc
 	     lineWidth: 0.35, // The line thickness
@@ -292,8 +334,8 @@
 	     percentColors: [[0.0, "#00FF00" ], [1.0, "#FF0000"]],
 	     strokeColor: '#E0E0E0',
 	     //staticZones: [
-		 //{strokeStyle: "#00FF00", min: 0, max: 2}, // 
-		 //{strokeStyle: "#FF0000", min: 2, max: 5}, // 
+	     //{strokeStyle: "#00FF00", min: 0, max: 2}, // 
+	     //{strokeStyle: "#FF0000", min: 2, max: 5}, // 
 	     //],
 	 };
 	 

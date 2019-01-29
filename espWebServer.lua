@@ -74,6 +74,8 @@ function sndStrCB(sock)
    sock:close()
 end
 
+local isk=0
+
 function sndFileCB(sock)
    local fp = sockDrawer[sock].filePointer
    local ll = fp:read(bufsize)
@@ -81,9 +83,12 @@ function sndFileCB(sock)
       local fn = sockDrawer[sock].fileName
       local ls = sockDrawer[sock].loadStart   
       print("File loaded, time (ms):", fn, (tmr.now()-ls)/1000.)
+      print("closing", fp)
       fp:close()
       sock:close()
       sockDrawer[sock] = nil
+      isk = isk - 1
+      print("isk:", isk)
    end
 end
 
@@ -97,14 +102,18 @@ function buildHttpHeader(size, mime)
    return ch..crlf..ct..crlf..cl..crlf..ck..crlf..cs..crlf..crlf
 end
 
+
 function sendFile(fn, mimetype, sock)
    local fs = file.stat(fn)
    if not fs then return nil end
    local fp = file.open(fn, "r")
    if not fp then return nil end
+   print("opening", fp)
    local pp = buildHttpHeader(fs.size, mimetype)
    --print("http header:", pp)
    sockDrawer[sock] = {fileName=fn, filePointer=fp, filePrefix=pp, loadStart=tmr.now()}
+   isk = isk + 1
+   print("isk:", isk)
    sock:on("sent", sndFileCB)
    sock:send(sockDrawer[sock].filePrefix)
    return true

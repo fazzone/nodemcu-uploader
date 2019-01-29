@@ -138,7 +138,7 @@ function xhrCB(varTable)
 end
 
 local ip=wifi.sta.getip()
-local bs=512
+local bs=1024
 server.setAjaxCB(xhrCB)
 server.start(80, bs)
 print("Starting web server on port 80, buffer size:", bs)
@@ -152,7 +152,6 @@ pressZero = adcDiv * adc.read(0) / 1023
 
 for i=1,50,1 do
    pressZero = pressZero - (pressZero - adcDiv * adc.read(0) / 1023)/10
-   print(pressZero)
 end
 
 print("pressZero:", pressZero)
