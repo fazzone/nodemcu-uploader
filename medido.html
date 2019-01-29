@@ -313,106 +313,104 @@
 	  </div>
 	  <div class="spacer"></div>
 	</div>
-      </div>
-      <script>
-	//
-	var smoothie = new SmoothieChart(
-	    {responsive: true,
-	     grid:
-	     {fillStyle:'#d9d9d9', sharpLines:true, millisPerLine:10000*2},
-	     labels:
-	     {fillStyle: '#000000', precision: 0},
-	     timestampFormatter:SmoothieChart.timeFormatter,
-	     millisPerPixel:266, minValue: -.4, maxValue: 10.4})
-	var smoothieCanvas=document.getElementById("timeplot");
-	var smoothieLine1 = new TimeSeries();
-	var smoothieLine2 = new TimeSeries();
-	smoothie.streamTo(smoothieCanvas,250)
-	smoothie.addTimeSeries(smoothieLine1,
-			       {lineWidth: 2, strokeStyle: '#00FF00', fillStyle:'#ccffcc'});
-	smoothie.addTimeSeries(smoothieLine2,
-			       {lineWidth: 2, strokeStyle: '#0000FF'});
-	//
-	var flowTarget = document.getElementById('flowGauge');
-	var pressTarget = document.getElementById('pressGauge');
-	var flowOpts = {
-	    angle: 0.05, // The span of the gauge arc
-	    lineWidth: 0.35, // The line thickness
-	    radiusScale: .9, // Relative radius
-	    pointer: {
-		length: 0.6, // Relative to gauge radius
-		strokeWidth: 0.035, // The thickness
-		color: '#000000', // Fill color
-	    },
-	    renderTicks: {
-		divisions: 6,
-		subDivisions: 4,
-		divLength: 0.3,
-		subLength: 0.15
-	    },
-	    staticLabels: {
-		labels: [-60,-40,-20,0,20,40, 60],
-		color: 'white',
-		font: "90% sans serif"
-	    },
-	    limitMax: true,     // If false, max value increases automatically if value > maxValue
-	    limitMin: true,     // If true, the min value of the gauge will be fixed
-	    generateGradient: true,
-	    highDpiSupport: true,     // High resolution support
-	    colorStart: '#0039e6',   // Colors
-	    colorStop: '#0039e6',    // just experiment with them
-	    strokeColor: '#E0E0E0',  // to see which ones work best for you
-	    fontSize: 30,
-	    staticZones: [
-		{strokeStyle: "#FFCC00", min: -60, max: -2}, // 
-		{strokeStyle: "#e0e0e0", min: -2,  max: 2},  // Grey near zero
-		{strokeStyle: "#0400FF", min: 2,   max: 60}, // 
-	    ],
-	};
-	var pressOpts = {
-	    angle: 0.05, // The span of the gauge arc
-	    lineWidth: 0.15, // The line thickness
-	    radiusScale: .5, // Relative radius
-	    pointer: {
-		length: 0.50, // // Relative to gauge radius
-		strokeWidth: 0.035, // The thickness
-		color: '#000000' // Fill color
-	    },
-	    renderTicks: {
-		divisions: 5,
-		subDivisions: 2,
-		divLength: 0.3,
-		subLength: 0.15
-	    },
-	    limitMax: true,     // If false, max value increases automatically if value > maxValue
-	    limitMin: true,     // If true, the min value of the gauge will be fixed
-	    generateGradient: true,
-	    highDpiSupport: true,     // High resolution support
-	    colorStart: '#0039e6',   // Colors
-	    colorStop: '#0039e6',    // just experiment with them
-	    strokeColor: '#E0E0E0',  // to see which ones work best for you
-	    //fontSize: 30,
-	    percentColors: [[0.0, "#00FF00" ], [1.0, "#FF0000"]],
-	    strokeColor: '#E0E0E0',
-	    //staticZones: [
-	    //{strokeStyle: "#00FF00", min: 0, max: 2}, // 
-	    //{strokeStyle: "#FF0000", min: 2, max: 5}, // 
-	    //],
-	};
+      </div>	<script>
+	 //
+	 var smoothie = new SmoothieChart(
+	     {grid:
+	 {fillStyle:'#d9d9d9', sharpLines:true, millisPerLine:10000*2},
+	      labels:
+	 {fillStyle: '#000000', precision: 0},
+	      timestampFormatter:SmoothieChart.timeFormatter,
+	      millisPerPixel:266, minValue: -.4, maxValue: 10.4})
+	 var smoothieCanvas=document.getElementById("timeplot");
+	 var smoothieLine1 = new TimeSeries();
+	 var smoothieLine2 = new TimeSeries();
+	 smoothie.streamTo(smoothieCanvas,250)
+	 smoothie.addTimeSeries(smoothieLine1,
+				{lineWidth: 2, strokeStyle: '#00FF00', fillStyle:'#ccffcc'});
+	 smoothie.addTimeSeries(smoothieLine2,
+				{lineWidth: 2, strokeStyle: '#0000FF'});
+	 //
+	 var flowTarget = document.getElementById('flowGauge');
+	 var pressTarget = document.getElementById('pressGauge');
+	 var flowOpts = {
+	     angle: 0.05, // The span of the gauge arc
+	     lineWidth: 0.35, // The line thickness
+	     radiusScale: .9, // Relative radius
+	     pointer: {
+		 length: 0.6, // Relative to gauge radius
+		 strokeWidth: 0.035, // The thickness
+		 color: '#000000', // Fill color
+	     },
+	     renderTicks: {
+		 divisions: 6,
+		 subDivisions: 4,
+		 divLength: 0.3,
+		 subLength: 0.15
+	     },
+	     staticLabels: {
+		 labels: [-60,-40,-20,0,20,40, 60],
+		 color: 'black',
+		 font: "90% sans serif"
+	     },
+	     limitMax: true,     // If false, max value increases automatically if value > maxValue
+	     limitMin: true,     // If true, the min value of the gauge will be fixed
+	     generateGradient: true,
+	     highDpiSupport: true,     // High resolution support
+	     colorStart: '#0039e6',   // Colors
+	     colorStop: '#0039e6',    // just experiment with them
+	     strokeColor: '#E0E0E0',  // to see which ones work best for you
+	     fontSize: 30,
+	     staticZones: [
+		 {strokeStyle: "#FFCC00", min: -60, max: -2}, // 
+		 {strokeStyle: "#e0e0e0", min: -2,  max: 2},  // Grey near zero
+		 {strokeStyle: "#0400FF", min: 2,   max: 60}, // 
+	     ],
+	 };
+	 var pressOpts = {
+	     angle: 0.05, // The span of the gauge arc
+	     lineWidth: 0.15, // The line thickness
+	     radiusScale: .5, // Relative radius
+	     pointer: {
+		 length: 0.50, // // Relative to gauge radius
+		 strokeWidth: 0.035, // The thickness
+		 color: '#000000' // Fill color
+	     },
+	     renderTicks: {
+		 divisions: 5,
+		 subDivisions: 2,
+		 divLength: 0.3,
+		 subLength: 0.15
+	     },
+	     limitMax: true,     // If false, max value increases automatically if value > maxValue
+	     limitMin: true,     // If true, the min value of the gauge will be fixed
+	     generateGradient: true,
+	     highDpiSupport: true,     // High resolution support
+	     colorStart: '#0039e6',   // Colors
+	     colorStop: '#0039e6',    // just experiment with them
+	     strokeColor: '#E0E0E0',  // to see which ones work best for you
+	     //fontSize: 30,
+	     percentColors: [[0.0, "#00FF00" ], [1.0, "#FF0000"]],
+	     strokeColor: '#E0E0E0',
+	     //staticZones: [
+	     //{strokeStyle: "#00FF00", min: 0, max: 2}, // 
+	     //{strokeStyle: "#FF0000", min: 2, max: 5}, // 
+	     //],
+	 };
+	 
+	 var flowGauge = new Gauge(flowTarget).setOptions(flowOpts); // create sexy gauge!
+	 var pressGauge = new Gauge(pressTarget).setOptions(pressOpts)
+	 flowGauge.maxValue = 60; // set max gauge value
+	 flowGauge.setMinValue(-60);  // Prefer setter over gauge.minValue = 0
+	 flowGauge.animationSpeed = 10; // set animation speed (32 is default value)
+	 pressGauge.maxValue = 10; // set max gauge value
+	 pressGauge.setMinValue(0);  // Prefer setter over gauge.minValue = 0
+	 pressGauge.animationSpeed = 10; // set animation speed (32 is default value)
+
+	 pressGauge.set(abcFact); // set actual value	 
+	 flowGauge.set(flowRstr); // set actual value
+	 
+	</script>
 	
-	var flowGauge = new Gauge(flowTarget).setOptions(flowOpts); // create sexy gauge!
-	var pressGauge = new Gauge(pressTarget).setOptions(pressOpts)
-	flowGauge.maxValue = 60; // set max gauge value
-	flowGauge.setMinValue(-60);  // Prefer setter over gauge.minValue = 0
-	flowGauge.animationSpeed = 10; // set animation speed (32 is default value)
-	pressGauge.maxValue = 10; // set max gauge value
-	pressGauge.setMinValue(0);  // Prefer setter over gauge.minValue = 0
-	pressGauge.animationSpeed = 10; // set animation speed (32 is default value)
-	
-	pressGauge.set(abcFact); // set actual value	 
-	flowGauge.set(flowRstr); // set actual value
-	
-      </script>
-      
     </body>
 </html>
